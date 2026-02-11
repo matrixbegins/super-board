@@ -1,4 +1,10 @@
-import type { KanWidgetConfig, WidgetEvent, WidgetState } from "./types";
+import type {
+  FileAttachment,
+  KanWidgetConfig,
+  ScreenshotSession,
+  WidgetEvent,
+  WidgetState,
+} from "./types";
 import { AnnotationCanvas } from "./annotation/canvas";
 import { KanApiClient } from "./api/client";
 import { captureScreenshot } from "./capture/screenshot";
@@ -6,12 +12,21 @@ import { createHost, destroyHost } from "./ui/host";
 import { createLauncher } from "./ui/launcher";
 import { createPanel } from "./ui/panel";
 import { createToolbar } from "./ui/toolbar";
-import { DEFAULT_ACCENT_COLOR, WIDGET_HOST_ID } from "./utils/helpers";
+import { DEFAULT_ACCENT_COLOR } from "./utils/helpers";
+import {
+  generateThumbnail,
+  optimizeBlobToJpeg,
+  optimizeImage,
+  optimizeScreenshot,
+} from "./utils/image-optimizer";
 import {
   captureMetadata,
   startConsoleCapture,
   stopConsoleCapture,
 } from "./utils/metadata";
+
+const DEFAULT_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
+const MAX_ATTACHMENTS = 6;
 
 export class KanWidget {
   private config: Required<KanWidgetConfig>;
@@ -24,7 +39,13 @@ export class KanWidget {
   private toolbar: ReturnType<typeof createToolbar> | null = null;
   private annotationCanvas: AnnotationCanvas | null = null;
   private feedbackListId: string | null = null;
-  private capturedScreenshot: HTMLCanvasElement | null = null;
+
+  // Multi-screenshot + file attachment state
+  private screenshotSessions: ScreenshotSession[] = [];
+  private fileAttachments: FileAttachment[] = [];
+  private editingSessionIndex: number | null = null;
+  private currentScreenshot: HTMLCanvasElement | null = null;
+  private exitingAnnotation = false;
 
   private constructor(config: KanWidgetConfig) {
     this.config = {
@@ -36,6 +57,7 @@ export class KanWidget {
       greeting: "How can we help you?",
       userName: "",
       userEmail: "",
+      maxAttachmentBytes: DEFAULT_MAX_ATTACHMENT_BYTES,
       ...config,
     };
     this.api = new KanApiClient(this.config.serverUrl, this.config.apiKey);
@@ -70,6 +92,10 @@ export class KanWidget {
       onClose: () => this.close(),
       onScreenshot: () => this.enterAnnotationMode(),
       onSubmit: (description, category) => this.submit(description, category),
+      onEditScreenshot: (index) => this.editScreenshot(index),
+      onFilesAttached: (files) => this.handleFilesAttached(files),
+      onRemoveAttachment: (index, type) =>
+        this.handleRemoveAttachment(index, type),
     });
 
     this.annotationCanvas = new AnnotationCanvas(this.shadowRoot);
@@ -95,38 +121,239 @@ export class KanWidget {
     this.panel?.hide();
     this.panel?.reset();
     this.annotationCanvas?.clear();
-    this.capturedScreenshot = null;
+    this.releaseAttachmentMemory();
     this.launcher?.show();
     this.state = "idle";
     this.emit("close");
   }
 
-  private async enterAnnotationMode(): Promise<void> {
-    // Capture screenshot NOW before user scrolls or changes the page
-    this.capturedScreenshot = await captureScreenshot();
-    this.state = "annotating";
-    this.annotationCanvas?.activate();
-    this.toolbar?.show();
+  /** Release stored canvases and blobs to free memory */
+  private releaseAttachmentMemory(): void {
+    for (const session of this.screenshotSessions) {
+      // Zero out canvas dimensions to release GPU/memory backing
+      session.screenshot.width = 0;
+      session.screenshot.height = 0;
+    }
+    this.screenshotSessions = [];
+    this.fileAttachments = [];
+    this.editingSessionIndex = null;
+    this.currentScreenshot = null;
   }
 
-  private exitAnnotationMode(): void {
-    if (this.state !== "annotating") return;
+  private async enterAnnotationMode(): Promise<void> {
+    try {
+      if (this.editingSessionIndex !== null) {
+        // Restore existing session for editing
+        const session = this.screenshotSessions[this.editingSessionIndex];
+        if (session) {
+          this.currentScreenshot = session.screenshot;
+          this.annotationCanvas?.restoreState({
+            annotations: session.annotations,
+            pins: session.pins,
+          });
+        }
+      } else {
+        // New screenshot session — capture now
+        this.currentScreenshot = await captureScreenshot();
+        this.annotationCanvas?.clear();
+      }
+      this.state = "annotating";
+      this.annotationCanvas?.activate();
+      this.toolbar?.show();
+    } catch {
+      // Screenshot capture failed — return to panel without breaking state
+      this.editingSessionIndex = null;
+      this.currentScreenshot = null;
+      this.panel?.showError("Failed to capture screenshot");
+    }
+  }
+
+  private async exitAnnotationMode(): Promise<void> {
+    if (this.state !== "annotating" || this.exitingAnnotation) return;
+    this.exitingAnnotation = true;
     this.state = "panel-open";
     this.annotationCanvas?.deactivate();
     this.toolbar?.hide();
 
-    // Update panel with annotation count
-    const pinCount = this.annotationCanvas?.getCommentPins().length ?? 0;
-    const hasAnnotations =
-      (this.annotationCanvas?.getAnnotations().length ?? 0) > 0;
-    this.panel?.updateScreenshotPreview(
-      hasAnnotations || pinCount > 0,
-      pinCount,
+    if (!this.currentScreenshot || !this.annotationCanvas) {
+      this.editingSessionIndex = null;
+      this.exitingAnnotation = false;
+      return;
+    }
+
+    // Save the current annotation state
+    const canvasState = this.annotationCanvas.saveState();
+    const pins = this.annotationCanvas.getCommentPins();
+    const hasContent = canvasState.annotations.length > 0 || pins.length > 0;
+
+    // Only save a session if there's content or we're editing an existing one
+    if (hasContent || this.editingSessionIndex !== null) {
+      // Create optimized blob with annotations baked in
+      const finalBlob = await this.createOptimizedScreenshot(
+        this.currentScreenshot,
+      );
+
+      const thumbnail = await generateThumbnail(this.currentScreenshot);
+
+      // Check size limit
+      const newSize =
+        this.getTotalSize() -
+        (this.editingSessionIndex !== null
+          ? (this.screenshotSessions[this.editingSessionIndex]?.optimizedBlob
+              .size ?? 0)
+          : 0) +
+        finalBlob.size;
+
+      if (newSize > this.config.maxAttachmentBytes) {
+        this.panel?.showError(
+          `Size limit exceeded (${Math.round(this.config.maxAttachmentBytes / 1024 / 1024)}MB max)`,
+        );
+        this.editingSessionIndex = null;
+        this.exitingAnnotation = false;
+        return;
+      }
+
+      if (
+        this.editingSessionIndex === null &&
+        this.getTotalAttachmentCount() >= MAX_ATTACHMENTS
+      ) {
+        this.panel?.showError(`Maximum ${MAX_ATTACHMENTS} attachments allowed`);
+        this.editingSessionIndex = null;
+        this.exitingAnnotation = false;
+        return;
+      }
+
+      const session: ScreenshotSession = {
+        screenshot: this.currentScreenshot,
+        annotations: canvasState.annotations,
+        pins,
+        thumbnail,
+        optimizedBlob: finalBlob,
+      };
+
+      if (this.editingSessionIndex !== null) {
+        this.screenshotSessions[this.editingSessionIndex] = session;
+        this.panel?.updateAttachment(
+          this.editingSessionIndex,
+          "screenshot",
+          thumbnail,
+          pins.length,
+        );
+      } else {
+        const newIndex = this.screenshotSessions.length;
+        this.screenshotSessions.push(session);
+        this.panel?.addAttachment(
+          thumbnail,
+          "screenshot",
+          pins.length,
+          newIndex,
+        );
+      }
+
+      this.updateSizeInfo();
+    }
+
+    this.annotationCanvas.clear();
+    this.editingSessionIndex = null;
+    this.currentScreenshot = null;
+    this.exitingAnnotation = false;
+  }
+
+  private async createOptimizedScreenshot(
+    screenshotCanvas: HTMLCanvasElement,
+  ): Promise<Blob> {
+    // If there are annotations, flatten them onto the screenshot first
+    const annotations = this.annotationCanvas?.getAnnotations() ?? [];
+    if (annotations.length > 0 && this.annotationCanvas) {
+      const flatBlob = this.annotationCanvas.flatten(screenshotCanvas);
+      if (flatBlob) {
+        // flatBlob is a raw PNG — resize and convert to JPEG
+        return optimizeBlobToJpeg(flatBlob);
+      }
+    }
+    // No annotations — just optimize the raw screenshot canvas
+    return optimizeScreenshot(screenshotCanvas);
+  }
+
+  private editScreenshot(index: number): void {
+    if (this.state !== "panel-open") return;
+    if (index < 0 || index >= this.screenshotSessions.length) return;
+    this.editingSessionIndex = index;
+    this.enterAnnotationMode();
+  }
+
+  private async handleFilesAttached(files: FileList): Promise<void> {
+    for (let i = 0; i < files.length; i++) {
+      if (this.getTotalAttachmentCount() >= MAX_ATTACHMENTS) {
+        this.panel?.showError(`Maximum ${MAX_ATTACHMENTS} attachments allowed`);
+        break;
+      }
+
+      const file = files[i]!;
+
+      try {
+        const optimizedBlob = await optimizeImage(file);
+
+        // Check size limit
+        const newSize = this.getTotalSize() + optimizedBlob.size;
+        if (newSize > this.config.maxAttachmentBytes) {
+          this.panel?.showError(
+            `Size limit exceeded (${Math.round(this.config.maxAttachmentBytes / 1024 / 1024)}MB max)`,
+          );
+          break;
+        }
+
+        const thumbnail = await generateThumbnail(optimizedBlob);
+        const newIndex = this.fileAttachments.length;
+        this.fileAttachments.push({ file, thumbnail, optimizedBlob });
+        this.panel?.addAttachment(thumbnail, "file", 0, newIndex, file.name);
+      } catch {
+        // Skip files that fail to process (e.g. corrupt images)
+        console.warn(`[kan-widget] Failed to process file: ${file.name}`);
+      }
+    }
+    this.updateSizeInfo();
+  }
+
+  private handleRemoveAttachment(
+    index: number,
+    type: "screenshot" | "file",
+  ): void {
+    if (type === "screenshot") {
+      this.screenshotSessions.splice(index, 1);
+    } else {
+      this.fileAttachments.splice(index, 1);
+    }
+    this.panel?.removeAttachment(index, type);
+    this.updateSizeInfo();
+  }
+
+  private getTotalAttachmentCount(): number {
+    return this.screenshotSessions.length + this.fileAttachments.length;
+  }
+
+  private getTotalSize(): number {
+    let total = 0;
+    for (const s of this.screenshotSessions) total += s.optimizedBlob.size;
+    for (const f of this.fileAttachments) total += f.optimizedBlob.size;
+    return total;
+  }
+
+  private updateSizeInfo(): void {
+    this.panel?.updateSizeInfo(
+      this.getTotalSize(),
+      this.config.maxAttachmentBytes,
     );
   }
 
   private async submit(description: string, category: string): Promise<void> {
     if (this.state === "submitting") return;
+
+    // Auto-save in-progress annotation session before submitting
+    if (this.state === "annotating") {
+      await this.exitAnnotationMode();
+    }
+
     this.state = "submitting";
     this.panel?.setSubmitting(true);
 
@@ -156,62 +383,47 @@ export class KanWidget {
 
       const cardPublicId = card.publicId;
 
-      // 5. Upload screenshot with annotations if any exist
-      const annotations = this.annotationCanvas?.getAnnotations() ?? [];
-      const pins = this.annotationCanvas?.getCommentPins() ?? [];
-      if (annotations.length > 0 || pins.length > 0) {
-        // Use pre-captured screenshot (taken when annotation mode started)
-        // Fall back to capturing now if none exists
-        const screenshotCanvas =
-          this.capturedScreenshot ?? (await captureScreenshot());
+      // 5. Upload all screenshot sessions
+      for (let i = 0; i < this.screenshotSessions.length; i++) {
+        const session = this.screenshotSessions[i]!;
+        const blob = session.optimizedBlob;
+        const filename = `feedback-screenshot-${i + 1}-${Date.now()}.jpg`;
 
-        // Flatten annotations onto screenshot
-        const blob = this.annotationCanvas!.flatten(screenshotCanvas);
+        await this.uploadAttachment(cardPublicId, blob, filename, "image/jpeg");
 
-        if (blob) {
-          // Upload to S3
-          const filename = `feedback-${Date.now()}.png`;
-          const { url: uploadUrl, key: s3Key } =
-            await this.api.generateUploadUrl(
-              cardPublicId,
-              filename,
-              "image/png",
-              blob.size,
-            );
-
-          await fetch(uploadUrl, {
-            method: "PUT",
-            body: blob,
-            headers: { "Content-Type": "image/png" },
+        // Create pin comments for this screenshot
+        const hasMultipleScreenshots = this.screenshotSessions.length > 1;
+        for (const pin of session.pins) {
+          const prefix = hasMultipleScreenshots
+            ? `\ud83d\udccc Screenshot ${i + 1}, #${pin.number}`
+            : `\ud83d\udccc #${pin.number}`;
+          await this.api.addComment(cardPublicId, `${prefix}: ${pin.text}`, {
+            externalCreatedByName: this.config.userName || undefined,
+            externalCreatedByEmail: this.config.userEmail || undefined,
           });
-
-          await this.api.confirmAttachment(cardPublicId, {
-            s3Key,
-            filename,
-            originalFilename: filename,
-            contentType: "image/png",
-            size: blob.size,
-          });
-        }
-
-        // 6. Create comments for each pin
-        for (const pin of pins) {
-          await this.api.addComment(
-            cardPublicId,
-            `\ud83d\udccc #${pin.number}: ${pin.text}`,
-            {
-              externalCreatedByName: this.config.userName || undefined,
-              externalCreatedByEmail: this.config.userEmail || undefined,
-            },
-          );
         }
       }
 
-      // Hide annotation UI and clear drawings immediately
+      // 6. Upload all file attachments
+      for (const attachment of this.fileAttachments) {
+        const filename = attachment.file.name || `attachment-${Date.now()}`;
+        const contentType =
+          attachment.optimizedBlob.type ||
+          attachment.file.type ||
+          "application/octet-stream";
+        await this.uploadAttachment(
+          cardPublicId,
+          attachment.optimizedBlob,
+          filename,
+          contentType,
+        );
+      }
+
+      // Clean up
       this.annotationCanvas?.deactivate();
       this.annotationCanvas?.clear();
       this.toolbar?.hide();
-      this.capturedScreenshot = null;
+      this.releaseAttachmentMemory();
 
       this.state = "success";
       this.panel?.showSuccess();
@@ -226,6 +438,40 @@ export class KanWidget {
       this.panel?.setSubmitting(false);
       this.emit("error");
     }
+  }
+
+  private async uploadAttachment(
+    cardPublicId: string,
+    blob: Blob,
+    filename: string,
+    contentType: string,
+  ): Promise<void> {
+    const { url: uploadUrl, key: s3Key } = await this.api.generateUploadUrl(
+      cardPublicId,
+      filename,
+      contentType,
+      blob.size,
+    );
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      body: blob,
+      headers: { "Content-Type": contentType },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(
+        `Upload failed for ${filename}: ${uploadResponse.status}`,
+      );
+    }
+
+    await this.api.confirmAttachment(cardPublicId, {
+      s3Key,
+      filename,
+      originalFilename: filename,
+      contentType,
+      size: blob.size,
+    });
   }
 
   private async ensureFeedbackList(): Promise<string> {
