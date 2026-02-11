@@ -7,8 +7,8 @@ import * as memberRepo from "@kan/db/repository/member.repo";
 import * as subscriptionRepo from "@kan/db/repository/subscription.repo";
 import * as userRepo from "@kan/db/repository/user.repo";
 import * as workspaceRepo from "@kan/db/repository/workspace.repo";
-import { generateUID } from "@kan/shared/utils";
 import { sendEmail } from "@kan/email";
+import { generateUID } from "@kan/shared/utils";
 import { createStripeClient } from "@kan/stripe";
 
 import { socialProvidersPlugin } from "./providers";
@@ -139,10 +139,11 @@ export function createPlugins(db: dbClient) {
                   let newSlug = workspace.publicId;
 
                   if (workspace.slug !== workspace.publicId) {
-                    const isPublicIdAvailable = await workspaceRepo.isWorkspaceSlugAvailable(
-                      db,
-                      workspace.publicId,
-                    );
+                    const isPublicIdAvailable =
+                      await workspaceRepo.isWorkspaceSlugAvailable(
+                        db,
+                        workspace.publicId,
+                      );
                     if (!isPublicIdAvailable) {
                       newSlug = generateUID();
                     }

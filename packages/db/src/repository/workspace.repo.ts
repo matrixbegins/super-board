@@ -1,17 +1,18 @@
 import {
   and,
+  asc,
   count,
   desc,
   eq,
   ilike,
   inArray,
   isNull,
-  asc,
   or,
   sql,
 } from "drizzle-orm";
 
 import type { dbClient } from "@kan/db/client";
+import type { Permission, Role } from "@kan/shared";
 import {
   boards,
   cards,
@@ -19,7 +20,6 @@ import {
   workspaceMembers,
   workspaces,
 } from "@kan/db/schema";
-import type { Permission, Role } from "@kan/shared";
 import { generateUID, getDefaultPermissions } from "@kan/shared";
 
 import * as permissionRepo from "./permission.repo";
@@ -251,7 +251,7 @@ export const getBySlugWithBoards = (db: dbClient, workspaceSlug: string) => {
           name: true,
         },
         where: and(isNull(boards.deletedAt), eq(boards.visibility, "public")),
-        orderBy: [asc(boards.name)]
+        orderBy: [asc(boards.name)],
       },
     },
     where: and(

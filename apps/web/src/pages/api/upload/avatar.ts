@@ -2,11 +2,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { createNextApiContext } from "@kan/api/trpc";
+import { withRateLimit } from "@kan/api/utils/rateLimit";
 import * as userRepo from "@kan/db/repository/user.repo";
+import { createS3Client } from "@kan/shared/utils";
 
 import { env } from "~/env";
-import { withRateLimit } from "@kan/api/utils/rateLimit";
-import { createS3Client } from "@kan/shared/utils";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 const allowedContentTypes = ["image/jpeg", "image/png", "image/webp"];
@@ -51,7 +51,9 @@ export default withRateLimit(
       }
 
       if (!Number.isFinite(contentLength) || contentLength <= 0) {
-        return res.status(400).json({ error: "Missing or invalid content length" });
+        return res
+          .status(400)
+          .json({ error: "Missing or invalid content length" });
       }
 
       if (contentLength > MAX_SIZE_BYTES) {
@@ -98,4 +100,3 @@ export default withRateLimit(
     }
   },
 );
-

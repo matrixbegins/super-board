@@ -27,8 +27,8 @@ import { useWorkspace } from "~/providers/workspace";
 import { api } from "~/utils/api";
 import { getAvatarUrl } from "~/utils/helpers";
 import { DeleteMemberConfirmation } from "./components/DeleteMemberConfirmation";
-import { InviteMemberForm } from "./components/InviteMemberForm";
 import { EditMemberPermissionsModal } from "./components/EditMemberPermissionsModal";
+import { InviteMemberForm } from "./components/InviteMemberForm";
 
 export default function MembersPage() {
   const { modalContentType, openModal, isOpen } = useModal();
@@ -144,8 +144,8 @@ export default function MembersPage() {
                     {memberName}
                   </p>
                 </div>
-                {((workspace.role === "admin" ||
-                  data?.showEmailsToMembers === true) ||
+                {(workspace.role === "admin" ||
+                  data?.showEmailsToMembers === true ||
                   showSkeleton) && (
                   <p
                     className={twMerge(
@@ -180,8 +180,7 @@ export default function MembersPage() {
                 <div className="relative inline-flex items-center">
                   <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400 ring-1 ring-inset ring-emerald-500/20 sm:text-[11px]">
                     {memberRole &&
-                      memberRole.charAt(0).toUpperCase() +
-                        memberRole.slice(1)}
+                      memberRole.charAt(0).toUpperCase() + memberRole.slice(1)}
                     {canEditMember && session?.user.id !== memberId && (
                       <HiChevronDown className="h-3 w-3" />
                     )}

@@ -32,9 +32,9 @@ const initialWorkspace: Workspace = {
 
 const initialAvailableWorkspaces: Workspace[] = [];
 
-export const WorkspaceContext = createContext<WorkspaceContextProps | undefined>(
-  undefined,
-);
+export const WorkspaceContext = createContext<
+  WorkspaceContextProps | undefined
+>(undefined);
 
 export const WorkspaceProvider: React.FC<{ children: ReactNode }> = ({
   children,

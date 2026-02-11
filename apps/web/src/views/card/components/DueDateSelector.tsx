@@ -47,9 +47,7 @@ export function DueDateSelector({
         return {
           ...oldCard,
           dueDate:
-            update.dueDate !== undefined
-              ? (update.dueDate as Date | null)
-              : oldCard.dueDate,
+            update.dueDate !== undefined ? update.dueDate : oldCard.dueDate,
         };
       });
 

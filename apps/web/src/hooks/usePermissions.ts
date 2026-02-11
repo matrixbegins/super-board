@@ -1,5 +1,6 @@
-import type { Permission } from "@kan/shared";
 import { useContext } from "react";
+
+import type { Permission } from "@kan/shared";
 
 import { WorkspaceContext } from "~/providers/workspace";
 import { api } from "~/utils/api";
@@ -33,7 +34,7 @@ interface UsePermissionsResult {
 export function usePermissions(): UsePermissionsResult {
   // Check if WorkspaceProvider is available (for public board views, it may not be)
   const workspaceContext = useContext(WorkspaceContext);
-  
+
   // If WorkspaceProvider is not available, return safe defaults
   if (!workspaceContext) {
     const emptyPermissions: UsePermissionsResult = {
@@ -106,4 +107,3 @@ export function usePermissions(): UsePermissionsResult {
     canEditWorkspace: hasPermission("workspace:edit"),
   };
 }
-

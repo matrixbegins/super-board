@@ -312,30 +312,29 @@ export const checklistRouter = createTRPCRouter({
 
       const previousTitle = item.title;
 
-        let updatedItem;
+      let updatedItem;
 
-        if (input.title !== undefined || input.completed !== undefined) {
-          updatedItem = await checklistRepo.updateItemById(ctx.db, {
-            id: item.id,
-            title: input.title,
-            completed: input.completed,
-          });
-        }
+      if (input.title !== undefined || input.completed !== undefined) {
+        updatedItem = await checklistRepo.updateItemById(ctx.db, {
+          id: item.id,
+          title: input.title,
+          completed: input.completed,
+        });
+      }
 
-        if (input.index !== undefined) {
-          updatedItem = await checklistRepo.reorderItem(ctx.db, {
-            itemId: item.id,
-            newIndex: input.index,
-          });
-        }
+      if (input.index !== undefined) {
+        updatedItem = await checklistRepo.reorderItem(ctx.db, {
+          itemId: item.id,
+          newIndex: input.index,
+        });
+      }
 
-        if (!updatedItem) {
-          throw new TRPCError({
-            message: `Failed to update checklist item`,
-            code: "INTERNAL_SERVER_ERROR",
-          });
-        }
-
+      if (!updatedItem) {
+        throw new TRPCError({
+          message: `Failed to update checklist item`,
+          code: "INTERNAL_SERVER_ERROR",
+        });
+      }
 
       // Log completion toggle
       if (input.completed !== undefined) {
@@ -361,7 +360,6 @@ export const checklistRouter = createTRPCRouter({
       }
 
       return updatedItem;
-
     }),
   deleteItem: protectedProcedure
     .meta({

@@ -7,7 +7,7 @@ export const locales = [
   "nl",
   "ru",
   "pl",
-  "pt-BR"
+  "pt-BR",
 ] as const;
 
 export type Locale = (typeof locales)[number];

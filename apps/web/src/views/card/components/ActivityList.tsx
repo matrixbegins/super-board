@@ -484,7 +484,6 @@ const ActivityList = ({
               cardPublicId={cardPublicId}
               // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- empty string should fall through
               name={activity.externalCreatedByName || activity.user?.name || ""}
-              // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
               email={
                 activity.externalCreatedByEmail || activity.user?.email || ""
               }
@@ -513,11 +512,9 @@ const ActivityList = ({
             <div className="relative">
               <Avatar
                 size="sm"
-                // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- empty string should fall through
                 name={
                   activity.externalCreatedByName || activity.user?.name || ""
                 }
-                // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
                 email={
                   activity.externalCreatedByEmail || activity.user?.email || ""
                 }
