@@ -1,0 +1,146 @@
+---
+title: Introduction
+description: Overview and quick start to run Kan on your own infrastructure using Docker Compose.
+---
+
+import { Cards, Card } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Tabs, Tab } from "fumadocs-ui/components/tabs";
+import { Accordions, Accordion } from "fumadocs-ui/components/accordion";
+
+This guide introduces how to self-host Kan. It starts with the minimal Docker Compose setup (web + PostgreSQL) and points you to optional features like email and S3-based file storage.
+
+## What you'll set up
+
+<Cards>
+  <Card title="Kan">
+    Next.js application served on port 3000.
+  </Card>
+  <Card title="PostgreSQL 15">
+    Primary database for Kan data.
+  </Card>
+</Cards>
+
+<Callout type="info">
+  For file uploads (avatars), OAuth, and other advanced options, see the
+  Environment Variables section in the README and the dedicated [S3
+  guide](/docs/guides/self-hosting/s3). The [full
+  compose](https://github.com/kanbn/kan/blob/main/docker-compose.yml) in the
+  repo includes a richer configuration via `.env`.
+</Callout>
+
+## Prerequisites
+
+- Docker and Docker Compose
+- A long random string for `BETTER_AUTH_SECRET` (32+ chars)
+
+## Quick start
+
+<Steps>
+
+### Create a docker-compose.yml
+
+Paste the following minimal configuration into a new `docker-compose.yml` file:
+
+```yaml
+services:
+  web:
+    image: ghcr.io/kanbn/kan:latest
+    container_name: kan-web
+    ports:
+      - "3000:3000"
+    networks:
+      - kan-network
+    environment:
+      NEXT_PUBLIC_BASE_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: your_auth_secret
+      POSTGRES_URL: postgresql://kan:your_postgres_password@postgres:5432/kan_db
+      NEXT_PUBLIC_ALLOW_CREDENTIALS: true
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    container_name: kan-db
+    environment:
+      POSTGRES_DB: kan_db
+      POSTGRES_USER: kan
+      POSTGRES_PASSWORD: your_postgres_password
+    ports:
+      - 5432:5432
+    volumes:
+      - kan_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - kan-network
+
+networks:
+  kan-network:
+
+volumes:
+  kan_postgres_data:
+```
+
+<Callout type="info">
+  The example above is intentionally minimal. The repository provides a more feature-complete compose file at [docker-compose.yml](https://github.com/kanbn/kan/blob/main/docker-compose.yml) if you want environment-based configuration, OAuth, S3, and more.
+</Callout>
+
+### Start the stack
+
+Bring everything up in detached mode:
+
+```bash
+docker compose up -d
+```
+
+Once started, open [http://localhost:3000](http://localhost:3000).
+
+### Manage the containers
+
+Useful commands while developing or testing:
+
+- Stop the containers: `docker compose down`
+- View logs: `docker compose logs -f`
+- Restart: `docker compose restart`
+
+### Configure environment (optional)
+
+For a production-like setup and more features (email, OAuth, file uploads, etc.), create a `.env` file and set the relevant variables shown in the README's Environment Variables section.
+
+<Accordions>
+<Accordion title="Common variables">
+
+```bash
+# Required
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+BETTER_AUTH_SECRET=replace_with_long_random_string
+POSTGRES_URL=postgresql://kan:your_postgres_password@postgres:5432/kan_db
+
+# Optional: Email
+EMAIL_FROM="Kan <hello@mail.kan.bn>"
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=465
+SMTP_USER=resend
+SMTP_PASSWORD=re_xxxx
+SMTP_SECURE=true
+
+# Optional: Auth toggles
+NEXT_PUBLIC_ALLOW_CREDENTIALS=true
+NEXT_PUBLIC_DISABLE_SIGN_UP=false
+```
+
+<Callout type="warn">
+  If you plan to enable file uploads (avatars, etc.), you'll also need S3 variables (`S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `NEXT_PUBLIC_STORAGE_URL`, `NEXT_PUBLIC_STORAGE_DOMAIN`, …). See the S3 guide linked at the top.
+</Callout>
+
+</Accordion>
+</Accordions>
+
+</Steps>
+
+## Reference
+
+- [GitHub README](https://github.com/kanbn/kan/blob/main/README.md#self-hosting-)
+- [GitHub docker-compose.yml](https://github.com/kanbn/kan/blob/main/docker-compose.yml)

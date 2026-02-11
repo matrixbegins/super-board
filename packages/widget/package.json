@@ -1,14 +1,23 @@
 {
-  "name": "@kan/widget",
+  "name": "@kanbn/feedback-widget",
   "version": "0.1.0",
-  "description": "Embeddable feedback widget for Kan.bn — screenshot, annotate, and submit bug reports",
+  "description": "Embeddable feedback widget for Kan — screenshot, annotate, and submit bug reports",
   "type": "module",
   "main": "dist/kan-widget.umd.js",
   "module": "dist/kan-widget.es.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/kan-widget.es.js",
+      "require": "./dist/kan-widget.umd.js",
+      "default": "./dist/kan-widget.umd.js"
+    }
+  },
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
@@ -21,5 +30,25 @@
     "typescript": "^5.6.3",
     "vite": "^6.1.0"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kanbn/kan.git",
+    "directory": "packages/widget"
+  },
+  "homepage": "https://kan.bn",
+  "keywords": [
+    "feedback",
+    "widget",
+    "screenshot",
+    "annotation",
+    "bug-reporting",
+    "kanban",
+    "kan",
+    "embeddable",
+    "user-feedback"
+  ],
   "license": "AGPL-3.0"
 }

@@ -58,6 +58,7 @@ export class KanWidget {
       userName: "",
       userEmail: "",
       maxAttachmentBytes: DEFAULT_MAX_ATTACHMENT_BYTES,
+      hideLauncher: false,
       ...config,
     };
     this.api = new KanApiClient(this.config.serverUrl, this.config.apiKey);
@@ -79,6 +80,10 @@ export class KanWidget {
       onClick: () => this.open(),
     });
 
+    if (this.config.hideLauncher) {
+      this.launcher.hide();
+    }
+
     // Personalize greeting with user's first name if available
     const firstName = this.config.userName?.split(" ")[0];
     const greeting = firstName
@@ -99,6 +104,7 @@ export class KanWidget {
     });
 
     this.annotationCanvas = new AnnotationCanvas(this.shadowRoot);
+    this.annotationCanvas.setOnEscape(() => this.exitAnnotationMode());
 
     this.toolbar = createToolbar(this.shadowRoot, {
       accentColor: this.config.accentColor,
@@ -122,7 +128,9 @@ export class KanWidget {
     this.panel?.reset();
     this.annotationCanvas?.clear();
     this.releaseAttachmentMemory();
-    this.launcher?.show();
+    if (!this.config.hideLauncher) {
+      this.launcher?.show();
+    }
     this.state = "idle";
     this.emit("close");
   }
@@ -168,92 +176,86 @@ export class KanWidget {
     }
   }
 
-  private async exitAnnotationMode(): Promise<void> {
-    if (this.state !== "annotating" || this.exitingAnnotation) return;
-    this.exitingAnnotation = true;
-    this.state = "panel-open";
-    this.annotationCanvas?.deactivate();
-    this.toolbar?.hide();
-
+  /** Save the current annotation session without leaving annotation mode */
+  private async saveCurrentAnnotationSession(): Promise<boolean> {
     if (!this.currentScreenshot || !this.annotationCanvas) {
-      this.editingSessionIndex = null;
-      this.exitingAnnotation = false;
-      return;
+      return false;
     }
 
-    // Save the current annotation state
     const canvasState = this.annotationCanvas.saveState();
     const pins = this.annotationCanvas.getCommentPins();
     const hasContent = canvasState.annotations.length > 0 || pins.length > 0;
 
-    // Only save a session if there's content or we're editing an existing one
-    if (hasContent || this.editingSessionIndex !== null) {
-      // Create optimized blob with annotations baked in
-      const finalBlob = await this.createOptimizedScreenshot(
-        this.currentScreenshot,
-      );
-
-      const thumbnail = await generateThumbnail(this.currentScreenshot);
-
-      // Check size limit
-      const newSize =
-        this.getTotalSize() -
-        (this.editingSessionIndex !== null
-          ? (this.screenshotSessions[this.editingSessionIndex]?.optimizedBlob
-              .size ?? 0)
-          : 0) +
-        finalBlob.size;
-
-      if (newSize > this.config.maxAttachmentBytes) {
-        this.panel?.showError(
-          `Size limit exceeded (${Math.round(this.config.maxAttachmentBytes / 1024 / 1024)}MB max)`,
-        );
-        this.editingSessionIndex = null;
-        this.exitingAnnotation = false;
-        return;
-      }
-
-      if (
-        this.editingSessionIndex === null &&
-        this.getTotalAttachmentCount() >= MAX_ATTACHMENTS
-      ) {
-        this.panel?.showError(`Maximum ${MAX_ATTACHMENTS} attachments allowed`);
-        this.editingSessionIndex = null;
-        this.exitingAnnotation = false;
-        return;
-      }
-
-      const session: ScreenshotSession = {
-        screenshot: this.currentScreenshot,
-        annotations: canvasState.annotations,
-        pins,
-        thumbnail,
-        optimizedBlob: finalBlob,
-      };
-
-      if (this.editingSessionIndex !== null) {
-        this.screenshotSessions[this.editingSessionIndex] = session;
-        this.panel?.updateAttachment(
-          this.editingSessionIndex,
-          "screenshot",
-          thumbnail,
-          pins.length,
-        );
-      } else {
-        const newIndex = this.screenshotSessions.length;
-        this.screenshotSessions.push(session);
-        this.panel?.addAttachment(
-          thumbnail,
-          "screenshot",
-          pins.length,
-          newIndex,
-        );
-      }
-
-      this.updateSizeInfo();
+    if (!hasContent && this.editingSessionIndex === null) {
+      return false;
     }
 
-    this.annotationCanvas.clear();
+    const finalBlob = await this.createOptimizedScreenshot(
+      this.currentScreenshot,
+    );
+
+    const thumbnail = await generateThumbnail(this.currentScreenshot);
+
+    // Check size limit
+    const newSize =
+      this.getTotalSize() -
+      (this.editingSessionIndex !== null
+        ? (this.screenshotSessions[this.editingSessionIndex]?.optimizedBlob
+            .size ?? 0)
+        : 0) +
+      finalBlob.size;
+
+    if (newSize > this.config.maxAttachmentBytes) {
+      this.panel?.showError(
+        `Size limit exceeded (${Math.round(this.config.maxAttachmentBytes / 1024 / 1024)}MB max)`,
+      );
+      return false;
+    }
+
+    if (
+      this.editingSessionIndex === null &&
+      this.getTotalAttachmentCount() >= MAX_ATTACHMENTS
+    ) {
+      this.panel?.showError(`Maximum ${MAX_ATTACHMENTS} attachments allowed`);
+      return false;
+    }
+
+    const session: ScreenshotSession = {
+      screenshot: this.currentScreenshot,
+      annotations: canvasState.annotations,
+      pins,
+      thumbnail,
+      optimizedBlob: finalBlob,
+    };
+
+    if (this.editingSessionIndex !== null) {
+      this.screenshotSessions[this.editingSessionIndex] = session;
+      this.panel?.updateAttachment(
+        this.editingSessionIndex,
+        "screenshot",
+        thumbnail,
+        pins.length,
+      );
+    } else {
+      const newIndex = this.screenshotSessions.length;
+      this.screenshotSessions.push(session);
+      this.panel?.addAttachment(thumbnail, "screenshot", pins.length, newIndex);
+    }
+
+    this.updateSizeInfo();
+    return true;
+  }
+
+  private async exitAnnotationMode(): Promise<void> {
+    if (this.state !== "annotating" || this.exitingAnnotation) return;
+    this.exitingAnnotation = true;
+
+    await this.saveCurrentAnnotationSession();
+
+    this.state = "panel-open";
+    this.annotationCanvas?.deactivate();
+    this.toolbar?.hide();
+    this.annotationCanvas?.clear();
     this.editingSessionIndex = null;
     this.currentScreenshot = null;
     this.exitingAnnotation = false;
@@ -275,9 +277,16 @@ export class KanWidget {
     return optimizeScreenshot(screenshotCanvas);
   }
 
-  private editScreenshot(index: number): void {
-    if (this.state !== "panel-open") return;
+  private async editScreenshot(index: number): Promise<void> {
+    if (this.state !== "panel-open" && this.state !== "annotating") return;
     if (index < 0 || index >= this.screenshotSessions.length) return;
+
+    // If currently annotating, save the current session before switching
+    if (this.state === "annotating") {
+      await this.saveCurrentAnnotationSession();
+      this.annotationCanvas?.clear();
+    }
+
     this.editingSessionIndex = index;
     this.enterAnnotationMode();
   }

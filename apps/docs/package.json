@@ -4,16 +4,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm with-env mint build",
-    "clean": "git clean -xdf .cache .turbo node_modules",
-    "dev": "pnpm with-env mintlify dev --port 3001",
-    "format": "prettier --check . --ignore-path ../../.gitignore",
-    "lint": "eslint",
-    "typecheck": "tsc --noEmit",
-    "with-env": "dotenv -e ../../.env --"
+    "dev": "next dev --port 3001 --turbopack",
+    "build": "next build",
+    "start": "next start --port 3001"
   },
   "dependencies": {
-    "mintlify": "^3.0.0"
+    "@tailwindcss/postcss": "^4.0.0",
+    "fumadocs-core": "^15.0.0",
+    "fumadocs-mdx": "^11.0.0",
+    "fumadocs-ui": "^15.0.0",
+    "next": "15.5.9",
+    "react": "catalog:react18",
+    "react-dom": "catalog:react18",
+    "tailwindcss": "^4.0.0"
   },
-  "prettier": "@kan/prettier-config"
+  "devDependencies": {
+    "@types/mdx": "^2.0.0",
+    "@types/react": "catalog:react18",
+    "@types/react-dom": "catalog:react18",
+    "typescript": "^5.6.3"
+  }
 }

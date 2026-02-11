@@ -18,6 +18,7 @@ export class AnnotationCanvas {
   private activeTool: BaseTool;
   private tools: Map<ToolType, BaseTool>;
   private active = false;
+  private onEscape: (() => void) | null = null;
 
   private boundPointerDown: (e: PointerEvent) => void;
   private boundPointerMove: (e: PointerEvent) => void;
@@ -188,6 +189,11 @@ export class AnnotationCanvas {
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      this.onEscape?.();
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === "z") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -196,6 +202,10 @@ export class AnnotationCanvas {
         this.undo();
       }
     }
+  }
+
+  setOnEscape(callback: () => void): void {
+    this.onEscape = callback;
   }
 
   setTool(toolType: ToolType): void {
