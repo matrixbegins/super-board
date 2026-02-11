@@ -2,9 +2,9 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import * as userRepo from "@kan/db/repository/user.repo";
+import { generateAvatarUrl } from "@kan/shared/utils";
 
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { generateAvatarUrl } from "@kan/shared/utils";
 
 export const userRouter = createTRPCRouter({
   getUser: protectedProcedure

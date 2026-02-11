@@ -1,8 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import {
-  RateLimiterRedis,
-  RateLimiterMemory,
-} from "rate-limiter-flexible";
+import { RateLimiterMemory, RateLimiterRedis } from "rate-limiter-flexible";
 
 import { getRedisClient } from "@kan/db/redis";
 
@@ -96,4 +93,3 @@ export function withRateLimit(
     }
   };
 }
-

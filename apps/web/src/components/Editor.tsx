@@ -10,6 +10,7 @@ import { t } from "@lingui/core/macro";
 import Link from "@tiptap/extension-link";
 import Mention from "@tiptap/extension-mention";
 import Placeholder from "@tiptap/extension-placeholder";
+import Typography from "@tiptap/extension-typography";
 import {
   BubbleMenu,
   EditorContent,
@@ -17,7 +18,6 @@ import {
   ReactRenderer,
   useEditor,
 } from "@tiptap/react";
-import Typography from "@tiptap/extension-typography";
 import StarterKit from "@tiptap/starter-kit";
 import Suggestion from "@tiptap/suggestion";
 import {
@@ -516,15 +516,15 @@ export default function Editor({
           },
         }),
         Typography.configure({
-            openDoubleQuote: false,
-            closeDoubleQuote: false,
-            openSingleQuote: false,
-            closeSingleQuote: false,
-            oneHalf: false,
-            oneQuarter: false,
-            threeQuarters: false,
-            superscriptTwo: false,
-            superscriptThree: false,
+          openDoubleQuote: false,
+          closeDoubleQuote: false,
+          openSingleQuote: false,
+          closeSingleQuote: false,
+          oneHalf: false,
+          oneQuarter: false,
+          threeQuarters: false,
+          superscriptTwo: false,
+          superscriptThree: false,
         }),
         ...(enableYouTubeEmbed ? [YouTubeNode] : []),
       ],

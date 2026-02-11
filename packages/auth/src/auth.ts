@@ -17,10 +17,7 @@ export const initAuth = (db: dbClient) => {
   return betterAuth({
     secret: env("BETTER_AUTH_SECRET"),
     baseURL,
-    trustedOrigins: [
-      ...(baseURL ? [baseURL] : []),
-      ...trustedOrigins,
-    ],
+    trustedOrigins: [...(baseURL ? [baseURL] : []), ...trustedOrigins],
     database: drizzleAdapter(db, {
       provider: "pg",
       schema: {

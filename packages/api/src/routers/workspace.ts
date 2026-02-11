@@ -4,11 +4,10 @@ import { z } from "zod";
 
 import * as workspaceRepo from "@kan/db/repository/workspace.repo";
 import * as workspaceSlugRepo from "@kan/db/repository/workspaceSlug.repo";
-import { generateUID } from "@kan/shared/utils";
+import { generateAvatarUrl, generateUID } from "@kan/shared/utils";
 
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { assertPermission } from "../utils/permissions";
-import { generateAvatarUrl } from "@kan/shared/utils";
 
 export const workspaceRouter = createTRPCRouter({
   all: protectedProcedure
@@ -84,8 +83,7 @@ export const workspaceRouter = createTRPCRouter({
       const isAdmin = userMember?.role === "admin";
 
       // Show emails if user is admin OR workspace setting allows it
-      const shouldShowEmails =
-        isAdmin || result.showEmailsToMembers === true;
+      const shouldShowEmails = isAdmin || result.showEmailsToMembers === true;
 
       // Generate presigned URLs for member avatars
       const membersWithAvatarUrls = await Promise.all(

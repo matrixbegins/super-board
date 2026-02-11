@@ -16,7 +16,11 @@ import {
 } from "@kan/shared/utils";
 
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { assertCanDelete, assertCanEdit, assertPermission } from "../utils/permissions";
+import {
+  assertCanDelete,
+  assertCanEdit,
+  assertPermission,
+} from "../utils/permissions";
 
 export const boardRouter = createTRPCRouter({
   all: protectedProcedure
@@ -65,7 +69,7 @@ export const boardRouter = createTRPCRouter({
         ctx.db,
         workspace.id,
         userId,
-        { type: input.type }
+        { type: input.type },
       );
 
       return result;
@@ -438,10 +442,14 @@ export const boardRouter = createTRPCRouter({
           .regex(/^(?![-]+$)[a-zA-Z0-9-]+$/)
           .optional(),
         visibility: z.enum(["public", "private"]).optional(),
-        favorite: z.boolean().optional()
+        favorite: z.boolean().optional(),
       }),
     )
-    .output(z.object({ success: z.boolean() }).or(z.custom<Awaited<ReturnType<typeof boardRepo.update>>>()))
+    .output(
+      z
+        .object({ success: z.boolean() })
+        .or(z.custom<Awaited<ReturnType<typeof boardRepo.update>>>()),
+    )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user?.id;
 
@@ -480,7 +488,8 @@ export const boardRouter = createTRPCRouter({
       }
 
       // Handle other updates (name, slug, visibility)
-      const hasOtherUpdates = input.name || input.slug || input.visibility !== undefined;
+      const hasOtherUpdates =
+        input.name || input.slug || input.visibility !== undefined;
 
       if (!hasOtherUpdates) {
         // Only favorite was updated, return success

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { t } from "@lingui/core/macro";
-import { HiOutlineRectangleStack, HiOutlineStar, HiStar } from "react-icons/hi2";
 import { motion } from "framer-motion";
+import {
+  HiOutlineRectangleStack,
+  HiOutlineStar,
+  HiStar,
+} from "react-icons/hi2";
+
 import Button from "~/components/Button";
 import PatternedBackground from "~/components/PatternedBackground";
 import { Tooltip } from "~/components/Tooltip";
@@ -33,7 +38,7 @@ export function BoardsList({ isTemplate }: { isTemplate?: boolean }) {
   const handleToggleFavorite = (
     e: React.MouseEvent,
     boardPublicId: string,
-    currentFavorite: boolean | undefined
+    currentFavorite: boolean | undefined,
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -42,7 +47,6 @@ export function BoardsList({ isTemplate }: { isTemplate?: boolean }) {
       favorite: !currentFavorite,
     });
   };
-
 
   if (isLoading)
     return (
@@ -66,9 +70,7 @@ export function BoardsList({ isTemplate }: { isTemplate?: boolean }) {
           </p>
         </div>
         <Tooltip
-          content={
-            !canCreateBoard ? t`You don't have permission` : undefined
-          }
+          content={!canCreateBoard ? t`You don't have permission` : undefined}
         >
           <Button
             onClick={() => {
@@ -98,10 +100,10 @@ export function BoardsList({ isTemplate }: { isTemplate?: boolean }) {
               type: "spring",
               stiffness: 300,
               damping: 30,
-              mass: 1
+              mass: 1,
             },
             opacity: { duration: 0.2 },
-            scale: { duration: 0.2 }
+            scale: { duration: 0.2 },
           }}
         >
           <Link
@@ -109,18 +111,25 @@ export function BoardsList({ isTemplate }: { isTemplate?: boolean }) {
           >
             <div className="group relative mr-5 flex h-[150px] w-full items-center justify-center rounded-md border border-dashed border-light-400 bg-light-50 shadow-sm hover:bg-light-200 dark:border-dark-600 dark:bg-dark-50 dark:hover:bg-dark-100">
               <PatternedBackground />
-                <button
-                  onClick={(e) => handleToggleFavorite(e, board.publicId, board.favorite)}
-                  className={`absolute right-3 top-3 z-10 rounded p-1 transition-all hover:bg-light-300 dark:hover:bg-dark-200 ${board.favorite ? "" : "md:opacity-0 md:group-hover:opacity-100"
-                    }`}
-                  aria-label={board.favorite ? "Remove from favorites" : "Add to favorites"}
-                >
-                  {board.favorite ? (
-                    <HiStar className="h-5 w-5 text-neutral-700 dark:text-dark-1000" />
-                  ) : (
-                    <HiOutlineStar className="h-5 w-5 text-neutral-700 dark:text-dark-800" />
-                  )}
-                </button>
+              <button
+                onClick={(e) =>
+                  handleToggleFavorite(e, board.publicId, board.favorite)
+                }
+                className={`absolute right-3 top-3 z-10 rounded p-1 transition-all hover:bg-light-300 dark:hover:bg-dark-200 ${
+                  board.favorite
+                    ? ""
+                    : "md:opacity-0 md:group-hover:opacity-100"
+                }`}
+                aria-label={
+                  board.favorite ? "Remove from favorites" : "Add to favorites"
+                }
+              >
+                {board.favorite ? (
+                  <HiStar className="h-5 w-5 text-neutral-700 dark:text-dark-1000" />
+                ) : (
+                  <HiOutlineStar className="h-5 w-5 text-neutral-700 dark:text-dark-800" />
+                )}
+              </button>
               <p className="px-4 text-[14px] font-bold text-neutral-700 dark:text-dark-1000">
                 {board.name}
               </p>

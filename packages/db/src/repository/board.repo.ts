@@ -982,8 +982,8 @@ export const removeUserFavorite = async (
     .where(
       and(
         eq(userBoardFavorites.userId, userId),
-        eq(userBoardFavorites.boardId, boardId)
-      )
+        eq(userBoardFavorites.boardId, boardId),
+      ),
     )
     .returning();
 };
