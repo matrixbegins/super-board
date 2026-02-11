@@ -1,0 +1,47 @@
+---
+/**
+ * Astro integration for @kanbn/feedback-widget
+ *
+ * Usage in any .astro page or layout:
+ *
+ *   ---
+ *   import KanFeedbackWidget from "@/components/KanFeedbackWidget.astro";
+ *   ---
+ *
+ *   <html>
+ *     <body>
+ *       <slot />
+ *       <KanFeedbackWidget
+ *         apiKey="kan_abc123..."
+ *         boardId="your-board-id"
+ *         serverUrl="https://your-kan-instance.com"
+ *         userName="Jane Doe"
+ *         userEmail="jane@example.com"
+ *       />
+ *     </body>
+ *   </html>
+ *
+ * The widget loads entirely on the client via an inline <script>.
+ * No framework runtime (React, Vue, etc.) is required.
+ */
+
+interface Props {
+  apiKey: string;
+  boardId: string;
+  serverUrl: string;
+  position?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+  accentColor?: string;
+  greeting?: string;
+  userName?: string;
+  userEmail?: string;
+  maxAttachmentBytes?: number;
+}
+
+const props = Astro.props;
+---
+
+<script define:vars={{ config: props }}>
+  import("@kanbn/feedback-widget").then(({ KanWidget }) => {
+    KanWidget.init(config);
+  });
+</script>

@@ -1,0 +1,372 @@
+---
+title: Framework Integration
+description: Copy-paste widget components for React, Next.js, Vue, Angular, Svelte, and Astro.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tabs, Tab } from "fumadocs-ui/components/tabs";
+
+The Kan feedback widget has **zero framework dependencies** — it renders via Shadow DOM and works anywhere JavaScript runs. The integration pattern is the same across all frameworks:
+
+1. **Dynamic import** on mount (avoids SSR/Node.js issues)
+2. **Init** the widget with your config
+3. **Destroy** on unmount to prevent memory leaks
+
+<Callout type="info">
+  All examples below use `@kanbn/feedback-widget` as the package name. Install it with `npm install @kanbn/feedback-widget`.
+</Callout>
+
+## React
+
+Create a component and render it once in your app (e.g. in your root layout):
+
+```tsx
+"use client";
+
+import { useEffect, useRef } from "react";
+import type { KanWidgetConfig } from "@kanbn/feedback-widget";
+
+type Props = Omit<KanWidgetConfig, "apiKey" | "boardId" | "serverUrl"> & {
+  apiKey: string;
+  boardId: string;
+  serverUrl: string;
+};
+
+export function KanFeedbackWidget({
+  apiKey,
+  boardId,
+  serverUrl,
+  ...options
+}: Props) {
+  const widgetRef = useRef<any>(null);
+
+  useEffect(() => {
+    let destroyed = false;
+
+    import("@kanbn/feedback-widget").then(({ KanWidget }) => {
+      if (destroyed) return;
+      widgetRef.current = KanWidget.init({
+        apiKey,
+        boardId,
+        serverUrl,
+        ...options,
+      });
+    });
+
+    return () => {
+      destroyed = true;
+      widgetRef.current?.destroy();
+      widgetRef.current = null;
+    };
+  }, []);
+
+  return null;
+}
+```
+
+```tsx
+// In your App or layout:
+<KanFeedbackWidget
+  apiKey="kan_abc123..."
+  boardId="your-board-id"
+  serverUrl="https://your-kan-instance.com"
+  userName="Jane Doe"
+  userEmail="jane@example.com"
+/>
+```
+
+## Next.js
+
+The same React component works in Next.js. The `"use client"` directive is required for App Router.
+
+<Tabs items={["App Router", "Pages Router"]}>
+  <Tab value="App Router">
+    Place the component in your root layout:
+
+    ```tsx
+    // app/layout.tsx
+    import { KanFeedbackWidget } from "@/components/KanFeedbackWidget";
+
+    export default function RootLayout({
+      children,
+    }: {
+      children: React.ReactNode;
+    }) {
+      return (
+        <html>
+          <body>
+            {children}
+            <KanFeedbackWidget
+              apiKey="kan_abc123..."
+              boardId="your-board-id"
+              serverUrl="https://your-kan-instance.com"
+            />
+          </body>
+        </html>
+      );
+    }
+    ```
+  </Tab>
+  <Tab value="Pages Router">
+    Add the component in `_app.tsx`:
+
+    ```tsx
+    // pages/_app.tsx
+    import type { AppProps } from "next/app";
+    import { KanFeedbackWidget } from "@/components/KanFeedbackWidget";
+
+    export default function App({ Component, pageProps }: AppProps) {
+      return (
+        <>
+          <Component {...pageProps} />
+          <KanFeedbackWidget
+            apiKey="kan_abc123..."
+            boardId="your-board-id"
+            serverUrl="https://your-kan-instance.com"
+          />
+        </>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Callout type="info">
+  The dynamic `import()` inside `useEffect` ensures the widget is never imported during server-side rendering. You do **not** need `next/dynamic`.
+</Callout>
+
+## Vue 3
+
+```vue
+<script setup lang="ts">
+import { onMounted, onBeforeUnmount, ref } from "vue";
+
+const props = defineProps<{
+  apiKey: string;
+  boardId: string;
+  serverUrl: string;
+  position?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+  accentColor?: string;
+  greeting?: string;
+  userName?: string;
+  userEmail?: string;
+}>();
+
+const widget = ref<any>(null);
+
+onMounted(async () => {
+  const { KanWidget } = await import("@kanbn/feedback-widget");
+  widget.value = KanWidget.init({
+    apiKey: props.apiKey,
+    boardId: props.boardId,
+    serverUrl: props.serverUrl,
+    position: props.position,
+    accentColor: props.accentColor,
+    greeting: props.greeting,
+    userName: props.userName,
+    userEmail: props.userEmail,
+  });
+});
+
+onBeforeUnmount(() => {
+  widget.value?.destroy();
+  widget.value = null;
+});
+</script>
+
+<template>
+  <!-- Widget renders itself via Shadow DOM -->
+</template>
+```
+
+For **Nuxt 3**, place the component in `components/` and wrap with `<ClientOnly>` if you encounter SSR issues:
+
+```vue
+<ClientOnly>
+  <KanFeedbackWidget
+    api-key="kan_abc123..."
+    board-id="your-board-id"
+    server-url="https://your-kan-instance.com"
+  />
+</ClientOnly>
+```
+
+## Angular
+
+```typescript
+import {
+  Component,
+  Input,
+  AfterViewInit,
+  OnDestroy,
+} from "@angular/core";
+
+@Component({
+  selector: "kan-feedback-widget",
+  standalone: true,
+  template: "",
+})
+export class KanFeedbackWidgetComponent implements AfterViewInit, OnDestroy {
+  @Input({ required: true }) apiKey!: string;
+  @Input({ required: true }) boardId!: string;
+  @Input({ required: true }) serverUrl!: string;
+  @Input() position?: string;
+  @Input() accentColor?: string;
+  @Input() greeting?: string;
+  @Input() userName?: string;
+  @Input() userEmail?: string;
+
+  private widget: any = null;
+
+  async ngAfterViewInit() {
+    const { KanWidget } = await import("@kanbn/feedback-widget");
+    this.widget = KanWidget.init({
+      apiKey: this.apiKey,
+      boardId: this.boardId,
+      serverUrl: this.serverUrl,
+      position: this.position as any,
+      accentColor: this.accentColor,
+      greeting: this.greeting,
+      userName: this.userName,
+      userEmail: this.userEmail,
+    });
+  }
+
+  ngOnDestroy() {
+    this.widget?.destroy();
+    this.widget = null;
+  }
+}
+```
+
+```html
+<!-- In your template -->
+<kan-feedback-widget
+  apiKey="kan_abc123..."
+  boardId="your-board-id"
+  serverUrl="https://your-kan-instance.com"
+/>
+```
+
+## Svelte / SvelteKit
+
+```svelte
+<script lang="ts">
+  import { onMount, onDestroy } from "svelte";
+
+  export let apiKey: string;
+  export let boardId: string;
+  export let serverUrl: string;
+  export let position: string = "bottom-right";
+  export let accentColor: string | undefined = undefined;
+  export let greeting: string | undefined = undefined;
+  export let userName: string | undefined = undefined;
+  export let userEmail: string | undefined = undefined;
+
+  let widget: any = null;
+
+  onMount(async () => {
+    const { KanWidget } = await import("@kanbn/feedback-widget");
+    widget = KanWidget.init({
+      apiKey,
+      boardId,
+      serverUrl,
+      position,
+      accentColor,
+      greeting,
+      userName,
+      userEmail,
+    });
+  });
+
+  onDestroy(() => {
+    widget?.destroy();
+    widget = null;
+  });
+</script>
+```
+
+This works as-is in SvelteKit — the dynamic import ensures client-only loading.
+
+## Astro
+
+Astro components run on the server by default. Use an inline `<script>` to load the widget on the client:
+
+```astro
+---
+// KanFeedbackWidget.astro
+interface Props {
+  apiKey: string;
+  boardId: string;
+  serverUrl: string;
+  position?: string;
+  accentColor?: string;
+  userName?: string;
+  userEmail?: string;
+}
+
+const props = Astro.props;
+---
+
+<script define:vars={{ config: props }}>
+  import("@kanbn/feedback-widget").then(({ KanWidget }) => {
+    KanWidget.init(config);
+  });
+</script>
+```
+
+```astro
+---
+// In your layout:
+import KanFeedbackWidget from "@/components/KanFeedbackWidget.astro";
+---
+
+<html>
+  <body>
+    <slot />
+    <KanFeedbackWidget
+      apiKey="kan_abc123..."
+      boardId="your-board-id"
+      serverUrl="https://your-kan-instance.com"
+    />
+  </body>
+</html>
+```
+
+## Vanilla HTML
+
+No framework needed — just a `<script>` tag:
+
+```html
+<!doctype html>
+<html>
+  <body>
+    <h1>My App</h1>
+
+    <script src="https://unpkg.com/@kanbn/feedback-widget"></script>
+    <script>
+      const widget = KanWidget.init({
+        apiKey: "kan_abc123...",
+        boardId: "your-board-id",
+        serverUrl: "https://your-kan-instance.com",
+        userName: "Jane Doe",
+        userEmail: "jane@example.com",
+      });
+    </script>
+  </body>
+</html>
+```
+
+Or with ES modules:
+
+```html
+<script type="module">
+  import { KanWidget } from "https://unpkg.com/@kanbn/feedback-widget?module";
+
+  KanWidget.init({
+    apiKey: "kan_abc123...",
+    boardId: "your-board-id",
+    serverUrl: "https://your-kan-instance.com",
+  });
+</script>
+```

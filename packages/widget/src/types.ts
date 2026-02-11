@@ -23,6 +23,8 @@ export interface KanWidgetConfig {
   userEmail?: string;
   /** Max total size in bytes for all attachments (default: 10MB) */
   maxAttachmentBytes?: number;
+  /** Hide the default launcher button — use widget.open() from your own UI */
+  hideLauncher?: boolean;
 }
 
 export interface Point {

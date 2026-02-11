@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kan Feedback Widget — Custom Trigger Example</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        padding: 2rem;
+        color: #1f2937;
+      }
+      h1 { margin-bottom: 1rem; }
+      p { margin-bottom: 1.5rem; color: #6b7280; }
+
+      .feedback-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        background: #6366f1;
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .feedback-btn:hover { background: #4f46e5; }
+
+      .feedback-link {
+        color: #6366f1;
+        text-decoration: underline;
+        cursor: pointer;
+        font-size: 0.9375rem;
+      }
+      .feedback-link:hover { color: #4f46e5; }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 2rem;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        margin: -2rem -2rem 2rem;
+      }
+      .nav-brand { font-weight: 700; font-size: 1.125rem; }
+      .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    </style>
+  </head>
+  <body>
+    <!-- Example: feedback button in a nav bar -->
+    <nav class="nav">
+      <span class="nav-brand">My App</span>
+      <div class="nav-links">
+        <a href="#">Dashboard</a>
+        <a href="#">Settings</a>
+        <button class="feedback-btn" id="nav-feedback-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Feedback
+        </button>
+      </div>
+    </nav>
+
+    <h1>Custom Trigger Example</h1>
+    <p>
+      The default floating launcher button is hidden. Instead, the widget opens
+      from your own UI elements — a button in the nav bar above, or
+      <a class="feedback-link" id="inline-feedback-link">this inline link</a>.
+    </p>
+
+    <script type="module">
+      import { KanWidget } from "../../src/index.ts";
+
+      // Initialize with hideLauncher: true
+      const widget = KanWidget.init({
+        apiKey: "kan_test_key",
+        boardId: "test-board-id",
+        serverUrl: "http://localhost:4310",
+        hideLauncher: true,
+        greeting: "Report a bug or share feedback",
+        userName: "Jane Doe",
+        userEmail: "jane@example.com",
+      });
+
+      // Open from a nav button
+      document.getElementById("nav-feedback-btn").addEventListener("click", () => {
+        widget.open();
+      });
+
+      // Open from an inline link
+      document.getElementById("inline-feedback-link").addEventListener("click", () => {
+        widget.open();
+      });
+    </script>
+  </body>
+</html>

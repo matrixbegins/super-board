@@ -1,0 +1,186 @@
+---
+title: Feedback Widget
+description: Embed a feedback widget in your app so users can screenshot, annotate, and submit bug reports to your Kan board.
+---
+
+import { Cards, Card } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Tabs, Tab } from "fumadocs-ui/components/tabs";
+
+Let your users report bugs and share feedback without leaving your app. The Kan feedback widget captures screenshots with annotations, file attachments, and browser metadata — then creates a card on your board with everything attached.
+
+<Cards>
+  <Card title="Screenshot & Annotate">
+    Capture the current page and draw on it with pen, arrows, rectangles, text, and comment pins.
+  </Card>
+  <Card title="File Attachments">
+    Attach files via picker or drag-and-drop. Images are auto-optimized before upload.
+  </Card>
+  <Card title="Zero Conflicts">
+    Renders in Shadow DOM — no CSS conflicts with your app. Works with any framework.
+  </Card>
+</Cards>
+
+## Prerequisites
+
+<Steps>
+
+### Create an API key
+
+Go to **Settings > API Keys** in your Kan dashboard and create a new key. The key starts with `kan_`.
+
+### Get your board ID
+
+Open the board you want feedback submitted to. Copy the board's public ID from the URL (e.g. `https://kan.bn/board/abc123` → `abc123`).
+
+</Steps>
+
+## Installation
+
+<Tabs items={["npm", "Script Tag"]}>
+  <Tab value="npm">
+    ```bash
+    npm install @kanbn/feedback-widget
+    ```
+
+    ```js
+    import { KanWidget } from "@kanbn/feedback-widget";
+
+    const widget = KanWidget.init({
+      apiKey: "kan_your_api_key",
+      boardId: "your-board-public-id",
+      serverUrl: "https://your-kan-instance.com",
+    });
+    ```
+  </Tab>
+  <Tab value="Script Tag">
+    ```html
+    <script src="https://unpkg.com/@kanbn/feedback-widget"></script>
+    <script>
+      KanWidget.init({
+        apiKey: "kan_your_api_key",
+        boardId: "your-board-public-id",
+        serverUrl: "https://your-kan-instance.com",
+      });
+    </script>
+    ```
+  </Tab>
+</Tabs>
+
+## Configuration
+
+All options passed to `KanWidget.init(config)`:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | **(required)** | Kan API key (e.g. `kan_abc123...`) |
+| `boardId` | `string` | **(required)** | Board public ID to submit feedback to |
+| `serverUrl` | `string` | **(required)** | Your Kan instance URL |
+| `position` | `string` | `"bottom-right"` | Launcher position: `"bottom-right"`, `"bottom-left"`, `"top-right"`, `"top-left"` |
+| `theme` | `string` | `"light"` | Widget theme: `"light"`, `"dark"`, `"auto"` |
+| `accentColor` | `string` | `"#6366f1"` | Accent color for buttons (hex) |
+| `feedbackListName` | `string` | `"Feedback"` | Board list name for new cards |
+| `metadata` | `Record<string, string>` | `{}` | Custom metadata included with submissions |
+| `greeting` | `string` | `"How can we help you?"` | Panel greeting text |
+| `userName` | `string` | `""` | Submitter's display name |
+| `userEmail` | `string` | `""` | Submitter's email |
+| `maxAttachmentBytes` | `number` | `10485760` | Max total attachment size in bytes (default 10 MB) |
+| `hideLauncher` | `boolean` | `false` | Hide the default floating button — use `widget.open()` from your own UI |
+
+## API
+
+### `KanWidget.init(config)`
+
+Creates and mounts the widget. Returns a widget instance.
+
+```js
+const widget = KanWidget.init({
+  apiKey: "kan_abc123...",
+  boardId: "board-id",
+  serverUrl: "https://your-kan-instance.com",
+  userName: "Jane Doe",
+  userEmail: "jane@example.com",
+});
+```
+
+### Instance Methods
+
+| Method | Description |
+| --- | --- |
+| `widget.open()` | Open the feedback panel programmatically |
+| `widget.close()` | Close the panel and reset state |
+| `widget.destroy()` | Remove the widget from the DOM entirely |
+| `widget.on(event, callback)` | Listen for widget events |
+
+### Events
+
+```js
+widget.on("submit", () => console.log("Feedback sent!"));
+widget.on("error", () => console.log("Something went wrong"));
+```
+
+| Event | Fired when |
+| --- | --- |
+| `open` | Panel is opened |
+| `close` | Panel is closed |
+| `submit` | Feedback submitted successfully |
+| `error` | Submission failed |
+
+## Annotation Tools
+
+When capturing a screenshot, users can annotate with:
+
+| Tool | Description |
+| --- | --- |
+| Pen | Freehand drawing |
+| Arrow | Directional arrows |
+| Rectangle | Rectangular highlights |
+| Text | Text labels |
+| Comment Pin | Numbered pins — each pin's text becomes a comment on the Kan card |
+
+## Attachment Limits
+
+- Maximum **6 attachments** per submission (screenshots + files combined)
+- Default **10 MB** total size limit (configurable via `maxAttachmentBytes`)
+- Screenshots are auto-compressed to JPEG and capped at 1920x1080
+- Large image files are resized before upload
+
+## What Gets Submitted
+
+When the user sends feedback, the widget creates a card on your board containing:
+
+- **Title** — first 100 characters of the feedback text
+- **Description** — full feedback text plus captured metadata (URL, browser, OS, viewport, screen resolution)
+- **Attachments** — screenshots with annotations baked in, plus any attached files
+- **Comments** — one comment per annotation pin, labeled with the pin number
+- **Attribution** — if `userName` / `userEmail` are set, the card and comments show the submitter's identity
+
+<Callout type="info">
+  The widget automatically captures the last 50 console log entries. These are included in the card metadata to help with debugging.
+</Callout>
+
+## Custom Trigger
+
+Don't want the default floating button? Set `hideLauncher: true` and open the widget from your own UI:
+
+```js
+const widget = KanWidget.init({
+  apiKey: "kan_abc123...",
+  boardId: "your-board-id",
+  serverUrl: "https://your-kan-instance.com",
+  hideLauncher: true,
+});
+
+document.getElementById("my-feedback-btn").addEventListener("click", () => {
+  widget.open();
+});
+```
+
+This works with any framework — just call `widget.open()` from a click handler, menu item, keyboard shortcut, or any other trigger.
+
+## Next Steps
+
+<Card title="Framework Integration" href="/docs/guides/widget/frameworks">
+  Copy-paste components for React, Next.js, Vue, Angular, Svelte, and Astro.
+</Card>
