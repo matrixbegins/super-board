@@ -178,6 +178,13 @@ export function getStyles(): string {
 .kan-panel-textarea::placeholder {
   color: #9ca3af;
 }
+.kan-panel-textarea-error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+.kan-panel-textarea-error::placeholder {
+  color: #ef4444;
+}
 
 /* Category dropdown */
 .kan-panel-category-row {

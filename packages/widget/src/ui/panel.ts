@@ -71,6 +71,9 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
   textarea.rows = 4;
   textarea.addEventListener("input", () => {
     description = textarea.value;
+    if (description.trim().length > 0) {
+      textarea.classList.remove("kan-panel-textarea-error");
+    }
   });
 
   // Category row
@@ -179,6 +182,15 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
   submitBtn.style.setProperty("--accent", options.accentColor);
   submitBtn.textContent = "Send feedback";
   submitBtn.addEventListener("click", () => {
+    const hasDescription = description.trim().length > 0;
+    const hasAttachments = attachments.length > 0;
+    if (!hasDescription && !hasAttachments) {
+      textarea.classList.add("kan-panel-textarea-error");
+      textarea.placeholder = "Please describe your feedback";
+      textarea.focus();
+      return;
+    }
+    textarea.classList.remove("kan-panel-textarea-error");
     options.onSubmit(description, category);
   });
 
@@ -252,6 +264,8 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
       description = "";
       category = "general";
       textarea.value = "";
+      textarea.placeholder = "Leave us your comment";
+      textarea.classList.remove("kan-panel-textarea-error");
       categorySelect.value = "general";
       attachments.length = 0;
       renderGrid();
