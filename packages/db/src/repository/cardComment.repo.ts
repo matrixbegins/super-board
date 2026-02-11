@@ -19,6 +19,8 @@ export const create = async (
     cardId: number;
     comment: string;
     createdBy: string;
+    externalCreatedByName?: string;
+    externalCreatedByEmail?: string;
   },
 ) => {
   const [result] = await db
@@ -28,11 +30,15 @@ export const create = async (
       comment: commentInput.comment,
       createdBy: commentInput.createdBy,
       cardId: commentInput.cardId,
+      externalCreatedByName: commentInput.externalCreatedByName,
+      externalCreatedByEmail: commentInput.externalCreatedByEmail,
     })
     .returning({
       id: comments.id,
       publicId: comments.publicId,
       comment: comments.comment,
+      externalCreatedByName: comments.externalCreatedByName,
+      externalCreatedByEmail: comments.externalCreatedByEmail,
     });
 
   return result;

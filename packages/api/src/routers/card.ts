@@ -7,12 +7,16 @@ import * as cardCommentRepo from "@kan/db/repository/cardComment.repo";
 import * as labelRepo from "@kan/db/repository/label.repo";
 import * as listRepo from "@kan/db/repository/list.repo";
 import * as workspaceRepo from "@kan/db/repository/workspace.repo";
+import { generateAttachmentUrl, generateAvatarUrl } from "@kan/shared/utils";
 
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { mergeActivities } from "../utils/activities";
 import { sendMentionEmails } from "../utils/notifications";
-import { assertCanDelete, assertCanEdit, assertPermission } from "../utils/permissions";
-import { generateAttachmentUrl, generateAvatarUrl } from "@kan/shared/utils";
+import {
+  assertCanDelete,
+  assertCanEdit,
+  assertPermission,
+} from "../utils/permissions";
 
 export const cardRouter = createTRPCRouter({
   create: protectedProcedure
@@ -35,6 +39,8 @@ export const cardRouter = createTRPCRouter({
         memberPublicIds: z.array(z.string().min(12)),
         position: z.enum(["start", "end"]),
         dueDate: z.date().nullable().optional(),
+        externalCreatedByName: z.string().max(255).optional(),
+        externalCreatedByEmail: z.string().email().max(255).optional(),
       }),
     )
     .output(z.custom<Awaited<ReturnType<typeof cardRepo.create>>>())
@@ -67,6 +73,8 @@ export const cardRouter = createTRPCRouter({
         listId: list.id,
         position: input.position,
         dueDate: input.dueDate ?? null,
+        externalCreatedByName: input.externalCreatedByName,
+        externalCreatedByEmail: input.externalCreatedByEmail,
       });
 
       const newCardId = newCard.id;
@@ -182,6 +190,8 @@ export const cardRouter = createTRPCRouter({
       z.object({
         cardPublicId: z.string().min(12),
         comment: z.string().min(1),
+        externalCreatedByName: z.string().max(255).optional(),
+        externalCreatedByEmail: z.string().email().max(255).optional(),
       }),
     )
     .output(z.custom<Awaited<ReturnType<typeof cardCommentRepo.create>>>())
@@ -205,12 +215,19 @@ export const cardRouter = createTRPCRouter({
           code: "NOT_FOUND",
         });
 
-      await assertPermission(ctx.db, userId, card.workspaceId, "comment:create");
+      await assertPermission(
+        ctx.db,
+        userId,
+        card.workspaceId,
+        "comment:create",
+      );
 
       const newComment = await cardCommentRepo.create(ctx.db, {
         comment: input.comment,
         createdBy: userId,
         cardId: card.id,
+        externalCreatedByName: input.externalCreatedByName,
+        externalCreatedByEmail: input.externalCreatedByEmail,
       });
 
       if (!newComment?.id)
@@ -225,6 +242,8 @@ export const cardRouter = createTRPCRouter({
         commentId: newComment.id,
         toComment: newComment.comment,
         createdBy: userId,
+        externalCreatedByName: input.externalCreatedByName,
+        externalCreatedByEmail: input.externalCreatedByEmail,
       });
 
       sendMentionEmails({

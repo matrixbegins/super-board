@@ -33,6 +33,8 @@ export const create = async (
     fromDueDate?: Date;
     toDueDate?: Date;
     sourceBoardId?: number;
+    externalCreatedByName?: string;
+    externalCreatedByEmail?: string;
   },
 ) => {
   const [result] = await db
@@ -58,6 +60,8 @@ export const create = async (
       fromDueDate: activityInput.fromDueDate,
       toDueDate: activityInput.toDueDate,
       sourceBoardId: activityInput.sourceBoardId,
+      externalCreatedByName: activityInput.externalCreatedByName,
+      externalCreatedByEmail: activityInput.externalCreatedByEmail,
     })
     .returning({ id: cardActivities.id });
 
@@ -129,6 +133,8 @@ export const getPaginatedActivities = async (
       toDescription: true,
       fromDueDate: true,
       toDueDate: true,
+      externalCreatedByName: true,
+      externalCreatedByEmail: true,
     },
     where: and(
       eq(cardActivities.cardId, cardId),
