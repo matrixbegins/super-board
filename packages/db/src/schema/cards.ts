@@ -74,6 +74,8 @@ export const cards = pgTable("card", {
     .references(() => lists.id, { onDelete: "cascade" }),
   importId: bigint("importId", { mode: "number" }).references(() => imports.id),
   dueDate: timestamp("dueDate"),
+  externalCreatedByName: varchar("externalCreatedByName", { length: 255 }),
+  externalCreatedByEmail: varchar("externalCreatedByEmail", { length: 255 }),
 }).enableRLS();
 
 export const cardsRelations = relations(cards, ({ one, many }) => ({
@@ -147,6 +149,8 @@ export const cardActivities = pgTable("card_activity", {
     () => boards.id,
     { onDelete: "set null" },
   ),
+  externalCreatedByName: varchar("externalCreatedByName", { length: 255 }),
+  externalCreatedByEmail: varchar("externalCreatedByEmail", { length: 255 }),
 }).enableRLS();
 
 export const cardActivitiesRelations = relations(cardActivities, ({ one }) => ({
@@ -263,6 +267,8 @@ export const comments = pgTable("card_comments", {
   deletedBy: uuid("deletedBy").references(() => users.id, {
     onDelete: "set null",
   }),
+  externalCreatedByName: varchar("externalCreatedByName", { length: 255 }),
+  externalCreatedByEmail: varchar("externalCreatedByEmail", { length: 255 }),
 }).enableRLS();
 
 export const commentsRelations = relations(comments, ({ one }) => ({

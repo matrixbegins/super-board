@@ -43,6 +43,8 @@ export const create = async (
     listId: number;
     position: "start" | "end";
     dueDate?: Date | null;
+    externalCreatedByName?: string;
+    externalCreatedByEmail?: string;
   },
 ) => {
   return db.transaction(async (tx) => {
@@ -92,8 +94,14 @@ export const create = async (
         listId: cardInput.listId,
         index: index,
         dueDate: cardInput.dueDate ?? null,
+        externalCreatedByName: cardInput.externalCreatedByName,
+        externalCreatedByEmail: cardInput.externalCreatedByEmail,
       })
-      .returning({ id: cards.id, listId: cards.listId, publicId: cards.publicId });
+      .returning({
+        id: cards.id,
+        listId: cards.listId,
+        publicId: cards.publicId,
+      });
 
     if (!result[0]) throw new Error("Unable to create card");
 
@@ -102,6 +110,8 @@ export const create = async (
       cardId: result[0].id,
       type: "card.created",
       createdBy: cardInput.createdBy,
+      externalCreatedByName: cardInput.externalCreatedByName,
+      externalCreatedByEmail: cardInput.externalCreatedByEmail,
     });
 
     const countExpr = sql<number>`COUNT(*)`.mapWith(Number);
@@ -561,6 +571,8 @@ export const getWithListAndMembersByPublicId = async (
           toDescription: true,
           fromDueDate: true,
           toDueDate: true,
+          externalCreatedByName: true,
+          externalCreatedByEmail: true,
         },
         with: {
           fromList: {
