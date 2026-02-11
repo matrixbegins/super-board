@@ -36,7 +36,15 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
-      "prettier --write --cache --cache-location .cache/.prettiercache",
+      "prettier --write --cache --cache-location .cache/.prettiercache"
+    ],
+    "apps/**/*.{ts,tsx,js,jsx}": [
+      "eslint --fix --cache --cache-location .cache/.eslintcache"
+    ],
+    "packages/{api,auth,db,email,shared,stripe}/**/*.{ts,tsx,js,jsx}": [
+      "eslint --fix --cache --cache-location .cache/.eslintcache"
+    ],
+    "tooling/**/*.{ts,tsx,js,jsx}": [
       "eslint --fix --cache --cache-location .cache/.eslintcache"
     ],
     "*.{json,md,mdx,css,yaml,yml}": [
