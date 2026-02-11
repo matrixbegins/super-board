@@ -48,8 +48,6 @@ jobs:
       - name: Publish to npm
         working-directory: packages/widget
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Commit & tag
         run: |
