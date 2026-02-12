@@ -673,5 +673,89 @@ export function getStyles(): string {
   outline-offset: -4px;
   border-radius: 0 0 12px 12px;
 }
+
+/* ===== Video recording overlay ===== */
+.kan-recording-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.kan-recording-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.kan-recording-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: kan-pulse 1.2s ease-in-out infinite;
+}
+@keyframes kan-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.kan-recording-timer {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: 2px;
+}
+.kan-recording-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.kan-recording-stop:hover {
+  background: #dc2626;
+}
+.kan-recording-hint {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Video thumbnail play icon overlay */
+.kan-attachment-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.kan-attachment-play::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 0 5px 9px;
+  border-color: transparent transparent transparent #fff;
+  margin-left: 2px;
+}
 `;
 }

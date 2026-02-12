@@ -70,6 +70,7 @@ export type WidgetState =
   | "idle"
   | "panel-open"
   | "annotating"
+  | "recording"
   | "submitting"
   | "success"
   | "error";
@@ -78,7 +79,13 @@ export type WidgetEvent = "open" | "close" | "submit" | "error";
 
 export type FeedbackCategory = "general" | "bug" | "feature";
 
-export type ToolType = "pen" | "arrow" | "rectangle" | "text" | "comment-pin";
+export type ToolType =
+  | "select"
+  | "pen"
+  | "arrow"
+  | "rectangle"
+  | "text"
+  | "comment-pin";
 
 /** A saved screenshot session with its annotations and optimized blob */
 export interface ScreenshotSession {
@@ -94,4 +101,12 @@ export interface FileAttachment {
   file: File;
   thumbnail: string;
   optimizedBlob: Blob;
+}
+
+/** A recorded video session */
+export interface VideoSession {
+  blob: Blob;
+  thumbnail: string;
+  duration: number;
+  mimeType: string;
 }

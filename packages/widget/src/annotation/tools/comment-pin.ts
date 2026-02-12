@@ -29,6 +29,15 @@ export class CommentPinTool extends BaseTool {
       pins.length > 0 ? Math.max(...pins.map((p) => p.number)) : 0;
   }
 
+  /** Update a pin's position after it has been dragged */
+  updatePinPosition(pinNumber: number, x: number, y: number): void {
+    const pin = this.pins.find((p) => p.number === pinNumber);
+    if (pin) {
+      pin.x = x;
+      pin.y = y;
+    }
+  }
+
   /** Check if a pointer click is on an existing pin */
   hitTest(x: number, y: number, annotations: Annotation[]): Annotation | null {
     const radius = 14;
