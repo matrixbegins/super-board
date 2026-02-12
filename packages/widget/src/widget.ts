@@ -2,12 +2,18 @@ import type {
   FileAttachment,
   KanWidgetConfig,
   ScreenshotSession,
+  VideoSession,
   WidgetEvent,
   WidgetState,
 } from "./types";
 import { AnnotationCanvas } from "./annotation/canvas";
 import { KanApiClient } from "./api/client";
 import { captureScreenshot } from "./capture/screenshot";
+import {
+  formatDuration,
+  generateVideoThumbnail,
+  VideoRecorder,
+} from "./capture/video";
 import { createHost, destroyHost } from "./ui/host";
 import { createLauncher } from "./ui/launcher";
 import { createPanel } from "./ui/panel";
@@ -40,9 +46,11 @@ export class KanWidget {
   private annotationCanvas: AnnotationCanvas | null = null;
   private feedbackListId: string | null = null;
 
-  // Multi-screenshot + file attachment state
+  // Multi-screenshot + file + video attachment state
   private screenshotSessions: ScreenshotSession[] = [];
   private fileAttachments: FileAttachment[] = [];
+  private videoSessions: VideoSession[] = [];
+  private videoRecorder: VideoRecorder | null = null;
   private editingSessionIndex: number | null = null;
   private currentScreenshot: HTMLCanvasElement | null = null;
   private exitingAnnotation = false;
@@ -101,6 +109,9 @@ export class KanWidget {
       onFilesAttached: (files) => this.handleFilesAttached(files),
       onRemoveAttachment: (index, type) =>
         this.handleRemoveAttachment(index, type),
+      onVideo: () => this.startVideoRecording(),
+      onStopRecording: () => this.stopVideoRecording(),
+      videoSupported: VideoRecorder.isSupported(),
     });
 
     this.annotationCanvas = new AnnotationCanvas(this.shadowRoot);
@@ -123,6 +134,11 @@ export class KanWidget {
 
   close(): void {
     if (this.state === "idle") return;
+    if (this.state === "recording") {
+      this.videoRecorder?.destroy();
+      this.videoRecorder = null;
+      this.panel?.hideRecording();
+    }
     this.exitAnnotationMode();
     this.panel?.hide();
     this.panel?.reset();
@@ -144,6 +160,7 @@ export class KanWidget {
     }
     this.screenshotSessions = [];
     this.fileAttachments = [];
+    this.videoSessions = [];
     this.editingSessionIndex = null;
     this.currentScreenshot = null;
   }
@@ -326,10 +343,12 @@ export class KanWidget {
 
   private handleRemoveAttachment(
     index: number,
-    type: "screenshot" | "file",
+    type: "screenshot" | "file" | "video",
   ): void {
     if (type === "screenshot") {
       this.screenshotSessions.splice(index, 1);
+    } else if (type === "video") {
+      this.videoSessions.splice(index, 1);
     } else {
       this.fileAttachments.splice(index, 1);
     }
@@ -338,13 +357,18 @@ export class KanWidget {
   }
 
   private getTotalAttachmentCount(): number {
-    return this.screenshotSessions.length + this.fileAttachments.length;
+    return (
+      this.screenshotSessions.length +
+      this.fileAttachments.length +
+      this.videoSessions.length
+    );
   }
 
   private getTotalSize(): number {
     let total = 0;
     for (const s of this.screenshotSessions) total += s.optimizedBlob.size;
     for (const f of this.fileAttachments) total += f.optimizedBlob.size;
+    for (const v of this.videoSessions) total += v.blob.size;
     return total;
   }
 
@@ -355,8 +379,103 @@ export class KanWidget {
     );
   }
 
+  private async startVideoRecording(): Promise<void> {
+    if (this.state !== "panel-open") return;
+    if (!VideoRecorder.isSupported()) return;
+
+    this.state = "recording";
+    this.panel?.showRecording();
+
+    this.videoRecorder = new VideoRecorder({
+      maxDuration: 120,
+      onStart: () => {
+        // Already showing recording UI
+      },
+      onTick: (elapsed) => {
+        this.panel?.updateRecordingTime(formatDuration(elapsed));
+      },
+      onStop: (blob, duration, mimeType) => {
+        this.handleVideoRecorded(blob, duration, mimeType);
+      },
+      onError: (error) => {
+        this.panel?.hideRecording();
+        this.state = "panel-open";
+        this.panel?.showError(error.message || "Recording failed");
+        this.videoRecorder = null;
+      },
+    });
+
+    try {
+      await this.videoRecorder.start(true);
+    } catch {
+      // Error callback above handles this
+    }
+  }
+
+  private stopVideoRecording(): void {
+    if (this.state !== "recording" || !this.videoRecorder) return;
+    this.videoRecorder.stop();
+  }
+
+  private async handleVideoRecorded(
+    blob: Blob,
+    duration: number,
+    mimeType: string,
+  ): Promise<void> {
+    this.panel?.hideRecording();
+    this.state = "panel-open";
+    this.videoRecorder = null;
+
+    // Check attachment limits
+    if (this.getTotalAttachmentCount() >= MAX_ATTACHMENTS) {
+      this.panel?.showError(`Maximum ${MAX_ATTACHMENTS} attachments allowed`);
+      return;
+    }
+
+    const newSize = this.getTotalSize() + blob.size;
+    if (newSize > this.config.maxAttachmentBytes) {
+      this.panel?.showError(
+        `Size limit exceeded (${Math.round(this.config.maxAttachmentBytes / 1024 / 1024)}MB max)`,
+      );
+      return;
+    }
+
+    // Generate thumbnail from video
+    let thumbnail: string;
+    try {
+      thumbnail = await generateVideoThumbnail(blob);
+    } catch {
+      // Fallback: black thumbnail
+      const canvas = document.createElement("canvas");
+      canvas.width = 120;
+      canvas.height = 80;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, 120, 80);
+      thumbnail = canvas.toDataURL("image/jpeg", 0.7);
+    }
+
+    const newIndex = this.videoSessions.length;
+    this.videoSessions.push({ blob, thumbnail, duration, mimeType });
+    this.panel?.addAttachment(
+      thumbnail,
+      "video",
+      0,
+      newIndex,
+      `Video (${formatDuration(duration)})`,
+    );
+    this.updateSizeInfo();
+  }
+
   private async submit(description: string, category: string): Promise<void> {
     if (this.state === "submitting") return;
+
+    // Stop recording if active
+    if (this.state === "recording" && this.videoRecorder) {
+      this.videoRecorder.stop();
+      // The onStop callback will handle the video — give it a moment
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
 
     // Auto-save in-progress annotation session before submitting
     if (this.state === "annotating") {
@@ -425,6 +544,19 @@ export class KanWidget {
           attachment.optimizedBlob,
           filename,
           contentType,
+        );
+      }
+
+      // 7. Upload all video recordings
+      for (let i = 0; i < this.videoSessions.length; i++) {
+        const session = this.videoSessions[i]!;
+        const ext = session.mimeType.includes("mp4") ? "mp4" : "webm";
+        const filename = `feedback-video-${i + 1}-${Date.now()}.${ext}`;
+        await this.uploadAttachment(
+          cardPublicId,
+          session.blob,
+          filename,
+          session.mimeType,
         );
       }
 
@@ -536,6 +668,8 @@ export class KanWidget {
 
   destroy(): void {
     this.close();
+    this.videoRecorder?.destroy();
+    this.videoRecorder = null;
     stopConsoleCapture();
     this.annotationCanvas?.destroy();
     destroyHost();

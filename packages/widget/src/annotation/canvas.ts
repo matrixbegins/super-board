@@ -1,11 +1,17 @@
-import type { Annotation, CommentPin, ToolType } from "../types";
+import type { Annotation, CommentPin, Point, ToolType } from "../types";
 import { DEFAULT_COLOR, DEFAULT_STROKE_WIDTH } from "../utils/helpers";
 import { AnnotationHistory } from "./history";
+import {
+  getAnnotationBounds,
+  hitTestAnnotation,
+  translateAnnotation,
+} from "./hit-test";
 import { ArrowTool } from "./tools/arrow";
 import { BaseTool } from "./tools/base";
 import { CommentPinTool } from "./tools/comment-pin";
 import { PenTool } from "./tools/pen";
 import { RectangleTool } from "./tools/rectangle";
+import { SelectTool } from "./tools/select";
 import { TextTool } from "./tools/text";
 
 export class AnnotationCanvas {
@@ -19,6 +25,11 @@ export class AnnotationCanvas {
   private tools: Map<ToolType, BaseTool>;
   private active = false;
   private onEscape: (() => void) | null = null;
+
+  // Universal drag state — works from any tool (Miro-like behavior)
+  private dragIndex: number | null = null;
+  private dragStart: Point | null = null;
+  private dragDidMove = false;
 
   private boundPointerDown: (e: PointerEvent) => void;
   private boundPointerMove: (e: PointerEvent) => void;
@@ -38,6 +49,14 @@ export class AnnotationCanvas {
     this.ctx = this.canvas.getContext("2d")!;
 
     // Create tool instances
+    const select = new SelectTool(
+      DEFAULT_COLOR,
+      DEFAULT_STROKE_WIDTH,
+      () => this.annotations,
+      (a) => {
+        this.annotations = a;
+      },
+    );
     const pen = new PenTool(DEFAULT_COLOR, DEFAULT_STROKE_WIDTH);
     const arrow = new ArrowTool(DEFAULT_COLOR, DEFAULT_STROKE_WIDTH);
     const rectangle = new RectangleTool(DEFAULT_COLOR, DEFAULT_STROKE_WIDTH);
@@ -79,6 +98,7 @@ export class AnnotationCanvas {
     });
 
     this.tools = new Map<ToolType, BaseTool>([
+      ["select", select],
       ["pen", pen],
       ["arrow", arrow],
       ["rectangle", rectangle],
@@ -97,12 +117,22 @@ export class AnnotationCanvas {
 
   private pendingTextPosition: { x: number; y: number } | null = null;
 
+  // Saved scroll-lock state so we can restore on deactivate
+  private savedOverflowHtml = "";
+  private savedOverflowBody = "";
+
   activate(): void {
     this.active = true;
     this.resizeCanvas();
     this.canvas.style.pointerEvents = "auto";
     this.canvas.classList.add("kan-canvas-active");
     this.canvas.style.cursor = this.activeTool.cursor;
+
+    // Lock page scroll while annotating — annotations use viewport coordinates
+    this.savedOverflowHtml = document.documentElement.style.overflow;
+    this.savedOverflowBody = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
 
     this.canvas.addEventListener("pointerdown", this.boundPointerDown);
     this.canvas.addEventListener("pointermove", this.boundPointerMove);
@@ -117,6 +147,10 @@ export class AnnotationCanvas {
     this.active = false;
     this.canvas.style.pointerEvents = "none";
     this.canvas.classList.remove("kan-canvas-active");
+
+    // Restore scroll
+    document.documentElement.style.overflow = this.savedOverflowHtml;
+    document.body.style.overflow = this.savedOverflowBody;
 
     this.canvas.removeEventListener("pointerdown", this.boundPointerDown);
     this.canvas.removeEventListener("pointermove", this.boundPointerMove);
@@ -144,12 +178,35 @@ export class AnnotationCanvas {
     const x = e.clientX;
     const y = e.clientY;
 
-    // Check if clicking on an existing comment pin (regardless of active tool)
-    const pinTool = this.tools.get("comment-pin") as CommentPinTool;
-    const hitPin = pinTool.hitTest(x, y, this.annotations);
-    if (hitPin) {
-      // Re-open the popup for this existing pin
-      pinTool.editExistingPin(hitPin);
+    // === Universal drag: hit-test existing annotations from ANY tool ===
+    // (Miro-like: draw anywhere, drag existing elements without tool switching)
+    for (let i = this.annotations.length - 1; i >= 0; i--) {
+      if (hitTestAnnotation(x, y, this.annotations[i]!)) {
+        this.dragIndex = i;
+        this.dragStart = { x, y };
+        this.dragDidMove = false;
+
+        // Close any open pin popup when starting interaction with an annotation
+        const pinPopup = this.shadowRoot.querySelector(
+          ".kan-pin-input-container",
+        );
+        if (pinPopup) pinPopup.remove();
+
+        // Show selection highlight
+        if (this.activeTool.name === "select") {
+          const selectTool = this.activeTool as SelectTool;
+          selectTool.setSelected(i);
+        }
+        this.render();
+        return;
+      }
+    }
+
+    // === No annotation hit — delegate to active tool for drawing ===
+    // Clear selection when clicking empty space
+    if (this.activeTool.name === "select") {
+      (this.activeTool as SelectTool).clearSelection();
+      this.render();
       return;
     }
 
@@ -170,7 +227,42 @@ export class AnnotationCanvas {
 
   private handlePointerMove(e: PointerEvent): void {
     e.preventDefault();
-    const result = this.activeTool.onPointerMove(e.clientX, e.clientY);
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // === Universal drag in progress ===
+    if (this.dragIndex !== null && this.dragStart !== null) {
+      const dx = x - this.dragStart.x;
+      const dy = y - this.dragStart.y;
+      if (dx !== 0 || dy !== 0) {
+        const ann = this.annotations[this.dragIndex];
+        if (ann) {
+          this.annotations[this.dragIndex] = translateAnnotation(ann, dx, dy);
+          this.dragStart = { x, y };
+          this.dragDidMove = true;
+          this.canvas.style.cursor = "grabbing";
+          this.render();
+        }
+      }
+      return;
+    }
+
+    // === Hover cursor: show grab cursor when over an existing annotation ===
+    if (this.activeAnnotation === null) {
+      let overAnnotation = false;
+      for (let i = this.annotations.length - 1; i >= 0; i--) {
+        if (hitTestAnnotation(x, y, this.annotations[i]!)) {
+          overAnnotation = true;
+          break;
+        }
+      }
+      this.canvas.style.cursor = overAnnotation
+        ? "grab"
+        : this.activeTool.cursor;
+    }
+
+    // === Drawing tool in progress ===
+    const result = this.activeTool.onPointerMove(x, y);
     if (result) {
       this.activeAnnotation = result;
       this.render();
@@ -179,7 +271,47 @@ export class AnnotationCanvas {
 
   private handlePointerUp(e: PointerEvent): void {
     e.preventDefault();
-    const result = this.activeTool.onPointerUp(e.clientX, e.clientY);
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // === Universal drag end ===
+    if (this.dragIndex !== null) {
+      const draggedIndex = this.dragIndex;
+      const didMove = this.dragDidMove;
+
+      // Reset drag state
+      this.dragIndex = null;
+      this.dragStart = null;
+      this.dragDidMove = false;
+      this.canvas.style.cursor = this.activeTool.cursor;
+
+      if (didMove) {
+        // Sync comment-pin internal position after drag
+        const ann = this.annotations[draggedIndex];
+        if (ann?.type === "comment-pin" && ann.pinNumber && ann.points[0]) {
+          const pinTool = this.tools.get("comment-pin") as CommentPinTool;
+          pinTool.updatePinPosition(
+            ann.pinNumber,
+            ann.points[0].x,
+            ann.points[0].y,
+          );
+        }
+        this.history.push([...this.annotations]);
+      } else {
+        // Click without drag — open pin popup for comment pins
+        const ann = this.annotations[draggedIndex];
+        if (ann?.type === "comment-pin") {
+          const pinTool = this.tools.get("comment-pin") as CommentPinTool;
+          pinTool.editExistingPin(ann);
+        }
+      }
+
+      this.render();
+      return;
+    }
+
+    // === Drawing tool end ===
+    const result = this.activeTool.onPointerUp(x, y);
     if (result) {
       this.annotations.push(result);
       this.history.push([...this.annotations]);
@@ -209,6 +341,14 @@ export class AnnotationCanvas {
   }
 
   setTool(toolType: ToolType): void {
+    // Clear any in-progress drag
+    this.dragIndex = null;
+    this.dragStart = null;
+    this.dragDidMove = false;
+    // Clear selection when switching away from select tool
+    if (this.activeTool.name === "select" && toolType !== "select") {
+      (this.activeTool as SelectTool).clearSelection();
+    }
     const tool = this.tools.get(toolType);
     if (tool) {
       this.activeTool = tool;
@@ -272,6 +412,9 @@ export class AnnotationCanvas {
   clear(): void {
     this.annotations = [];
     this.activeAnnotation = null;
+    this.dragIndex = null;
+    this.dragStart = null;
+    this.dragDidMove = false;
     this.history.clear();
     const pinTool = this.tools.get("comment-pin") as CommentPinTool;
     pinTool.resetPins();
@@ -287,6 +430,26 @@ export class AnnotationCanvas {
   getCommentPins(): CommentPin[] {
     const pinTool = this.tools.get("comment-pin") as CommentPinTool;
     return pinTool.getPins();
+  }
+
+  /** Draw a dashed selection box around an annotation by index */
+  private renderDragSelection(index: number): void {
+    const ann = this.annotations[index];
+    if (!ann) return;
+    const bounds = getAnnotationBounds(ann);
+    const pad = 6;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "#4f46e5"; // indigo
+    this.ctx.lineWidth = 1.5;
+    this.ctx.setLineDash([5, 4]);
+    this.ctx.strokeRect(
+      bounds.x - pad,
+      bounds.y - pad,
+      bounds.width + pad * 2,
+      bounds.height + pad * 2,
+    );
+    this.ctx.restore();
   }
 
   /** Render all annotations + active (in-progress) annotation onto the canvas */
@@ -307,6 +470,13 @@ export class AnnotationCanvas {
       if (tool) {
         tool.render(this.activeAnnotation, this.ctx);
       }
+    }
+
+    // Draw selection indicator — during drag from any tool, or when select tool has selection
+    if (this.dragIndex !== null) {
+      this.renderDragSelection(this.dragIndex);
+    } else if (this.activeTool.name === "select") {
+      (this.activeTool as SelectTool).renderSelection(this.ctx);
     }
   }
 

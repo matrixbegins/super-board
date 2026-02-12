@@ -7,18 +7,24 @@ interface PanelOptions {
   position: string;
   onClose: () => void;
   onScreenshot: () => void;
+  onVideo: () => void;
+  onStopRecording: () => void;
   onSubmit: (description: string, category: FeedbackCategory) => void;
   onEditScreenshot: (index: number) => void;
   onFilesAttached: (files: FileList) => void;
-  onRemoveAttachment: (index: number, type: "screenshot" | "file") => void;
+  onRemoveAttachment: (
+    index: number,
+    type: "screenshot" | "file" | "video",
+  ) => void;
+  videoSupported: boolean;
 }
 
 interface AttachmentItem {
   thumbnail: string;
-  type: "screenshot" | "file";
+  type: "screenshot" | "file" | "video";
   pinCount: number;
   name?: string;
-  /** Index within the widget's screenshotSessions or fileAttachments array */
+  /** Index within the widget's screenshotSessions, fileAttachments, or videoSessions array */
   originalIndex: number;
 }
 
@@ -138,9 +144,16 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
   screenshotBtn.addEventListener("click", options.onScreenshot);
 
   const videoBtn = document.createElement("button");
-  videoBtn.className = "kan-panel-action-btn kan-disabled";
-  videoBtn.title = "Record video (coming soon)";
-  videoBtn.disabled = true;
+  if (options.videoSupported) {
+    videoBtn.className = "kan-panel-action-btn";
+    videoBtn.title = "Record screen";
+    videoBtn.disabled = false;
+    videoBtn.addEventListener("click", () => options.onVideo());
+  } else {
+    videoBtn.className = "kan-panel-action-btn kan-disabled";
+    videoBtn.title = "Screen recording not supported in this browser";
+    videoBtn.disabled = true;
+  }
   videoBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
   </svg>`;
@@ -171,7 +184,47 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
     }
   });
 
-  body.append(textarea, categoryRow, attachSection, actionRow, fileInput);
+  // -- Recording overlay (inside body, hidden by default) --
+  const recordingOverlay = document.createElement("div");
+  recordingOverlay.className = "kan-recording-overlay";
+  recordingOverlay.style.display = "none";
+
+  const recordingRow = document.createElement("div");
+  recordingRow.className = "kan-recording-row";
+  const recordingDot = document.createElement("span");
+  recordingDot.className = "kan-recording-dot";
+  const recordingLabel = document.createElement("span");
+  recordingLabel.textContent = "Recording...";
+  recordingRow.append(recordingDot, recordingLabel);
+
+  const recordingTimer = document.createElement("div");
+  recordingTimer.className = "kan-recording-timer";
+  recordingTimer.textContent = "0:00";
+
+  const recordingStopBtn = document.createElement("button");
+  recordingStopBtn.className = "kan-recording-stop";
+  recordingStopBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg> Stop`;
+  recordingStopBtn.addEventListener("click", () => options.onStopRecording());
+
+  const recordingHint = document.createElement("div");
+  recordingHint.className = "kan-recording-hint";
+  recordingHint.textContent = "Max 2 minutes";
+
+  recordingOverlay.append(
+    recordingRow,
+    recordingTimer,
+    recordingStopBtn,
+    recordingHint,
+  );
+
+  body.append(
+    textarea,
+    categoryRow,
+    attachSection,
+    actionRow,
+    fileInput,
+    recordingOverlay,
+  );
 
   // -- Footer --
   const footer = document.createElement("div");
@@ -226,6 +279,13 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
         badge.className = "kan-attachment-badge";
         badge.textContent = `${item.pinCount}`;
         thumb.appendChild(badge);
+      }
+
+      // Play icon for video thumbnails
+      if (item.type === "video") {
+        const playIcon = document.createElement("span");
+        playIcon.className = "kan-attachment-play";
+        thumb.appendChild(playIcon);
       }
 
       // Remove button
@@ -295,9 +355,27 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
         statusOverlay.style.display = "none";
       }, 3000);
     },
+    showRecording() {
+      textarea.style.display = "none";
+      categoryRow.style.display = "none";
+      attachSection.style.display = "none";
+      actionRow.style.display = "none";
+      recordingOverlay.style.display = "";
+      recordingTimer.textContent = "0:00";
+    },
+    hideRecording() {
+      recordingOverlay.style.display = "none";
+      textarea.style.display = "";
+      categoryRow.style.display = "";
+      actionRow.style.display = "";
+      // attachSection visibility managed by renderGrid
+    },
+    updateRecordingTime(formatted: string) {
+      recordingTimer.textContent = formatted;
+    },
     addAttachment(
       thumbnail: string,
-      type: "screenshot" | "file",
+      type: "screenshot" | "file" | "video",
       pinCount: number,
       originalIndex: number,
       name?: string,
@@ -305,7 +383,10 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
       attachments.push({ thumbnail, type, pinCount, originalIndex, name });
       renderGrid();
     },
-    removeAttachment(originalIndex: number, type: "screenshot" | "file") {
+    removeAttachment(
+      originalIndex: number,
+      type: "screenshot" | "file" | "video",
+    ) {
       const idx = attachments.findIndex(
         (a) => a.originalIndex === originalIndex && a.type === type,
       );
@@ -322,7 +403,7 @@ export function createPanel(shadowRoot: ShadowRoot, options: PanelOptions) {
     },
     updateAttachment(
       originalIndex: number,
-      type: "screenshot" | "file",
+      type: "screenshot" | "file" | "video",
       thumbnail: string,
       pinCount: number,
     ) {

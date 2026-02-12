@@ -129,6 +129,17 @@ Husky + lint-staged runs on every commit:
 
 Typecheck runs in CI (too slow for pre-commit in monorepo).
 
+## UX Quality Standard
+
+All interfaces must be polished to enterprise production-grade quality. Every interaction, animation, and visual detail matters — it elevates the level and credibility of our work.
+
+- **Never ship mediocre UX** — every feature must feel intuitive and refined
+- Interactions should match user expectations from best-in-class tools (Miro, Linear, Figma, Notion)
+- Micro-interactions and transitions should feel smooth and intentional
+- Drag, hover, focus, and error states must all be handled gracefully
+- Accessibility and responsiveness are not optional
+- When in doubt, study how top-tier products handle the same interaction
+
 ## What to Avoid
 
 - `process.env` in web app code — use `~/env`
