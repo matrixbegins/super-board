@@ -140,6 +140,7 @@ All interfaces must be polished to enterprise production-grade quality. Every in
 - Accessibility and responsiveness are not optional
 - When in doubt, study how top-tier products handle the same interaction
 
+
 ## What to Avoid
 
 - `process.env` in web app code — use `~/env`
