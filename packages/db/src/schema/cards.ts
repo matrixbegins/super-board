@@ -151,6 +151,10 @@ export const cardActivities = pgTable("card_activity", {
   ),
   externalCreatedByName: varchar("externalCreatedByName", { length: 255 }),
   externalCreatedByEmail: varchar("externalCreatedByEmail", { length: 255 }),
+  attachmentId: bigint("attachmentId", { mode: "number" }).references(
+    () => cardAttachments.id,
+    { onDelete: "cascade" },
+  ),
 }).enableRLS();
 
 export const cardActivitiesRelations = relations(cardActivities, ({ one }) => ({
@@ -193,6 +197,11 @@ export const cardActivitiesRelations = relations(cardActivities, ({ one }) => ({
     fields: [cardActivities.commentId],
     references: [comments.id],
     relationName: "cardActivitiesComment",
+  }),
+  attachment: one(cardAttachments, {
+    fields: [cardActivities.attachmentId],
+    references: [cardAttachments.id],
+    relationName: "cardActivitiesAttachment",
   }),
 }));
 

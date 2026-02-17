@@ -11,6 +11,7 @@ import { createS3Client, generateUID } from "@kan/shared/utils";
 
 import { env } from "~/env";
 
+// FIXME: Respect the environment variable: NEXT_API_BODY_SIZE_LIMIT
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 
 export const config = {
@@ -118,9 +119,15 @@ export default withRateLimit(
         createdBy: user.id,
       });
 
+      if (!attachment) {
+        return res.status(500).json({ error: "Failed to create attachment" });
+      }
+
       await cardActivityRepo.create(db, {
         type: "card.updated.attachment.added",
         cardId: card.id,
+        attachmentId: attachment.id,
+        toTitle: originalFilenameHeader,
         createdBy: user.id,
       });
 
